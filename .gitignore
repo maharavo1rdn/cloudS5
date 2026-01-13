@@ -1,0 +1,14 @@
+node_modules
+.vs_code
+dist
+build
+.env
+.DS_Store
+.idea
+*.log
+coverage
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnp
