@@ -1,0 +1,15 @@
+format reponse: camelCase
+
+1. Login sur firebase
+    - Création d'un projet cloudS5
+    - Ajout d'un utilisateur et mot de passe pour tester
+    - récuperation de la clé API dans le projet paramètre générale-> clé API
+    - test de l'url sur POSTMAN 
+2. Login sur Docker
+    . Base sur postgres
+    . Code back end node pour faire le Login
+
+3. Inscription sur firebase
+4. Inscription sur docker
+4. Modification sur firebase
+5. Modification sur docker
