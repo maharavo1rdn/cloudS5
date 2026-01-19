@@ -2,6 +2,7 @@ node_modules
 .vs_code
 dist
 build
+tests
 .env
 .DS_Store
 .idea
