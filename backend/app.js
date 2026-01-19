@@ -6,17 +6,36 @@ import userRoutes from './routes/users.js';
 
 const app = express();
 
-// Middleware
-app.use(cors());
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production'
+    ? (process.env.ALLOWED_ORIGINS || 'http://localhost:3000').split(',')
+    : "*",
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 3600
+};
+
+app.use(cors(corsOptions));
 app.use(json());
 
-// Routes
+// Middleware de logging pour déboguer
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path}`, {
+    hasBody: !!req.body,
+    bodyKeys: req.body ? Object.keys(req.body) : 'no body',
+    contentType: req.headers['content-type']
+  });
+  
+  next();
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 
 // Route de test
 app.get('/', (req, res) => {
-  res.json({ message: 'API Backend Node.js avec PostgreSQL' });
+  res.json({ message: 'API Backend Node.js with PostgreSQL' });
 });
 
 // Synchroniser la base de données et démarrer le serveur

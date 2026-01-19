@@ -12,16 +12,25 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(255) NOT NULL UNIQUE,
     email VARCHAR(255) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
-    "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    isBlocked BOOLEAN DEFAULT FALSE,
+    "createdAt" TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS settings(
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(255) NOT NULL UNIQUE,
+    value VARCHAR(255) NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    date TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Insérer des utilisateurs de test
 -- Mot de passe pour user1: password123 (hashé)
 -- Mot de passe pour user2: testpass (hashé)
 INSERT INTO users (username, email, password) VALUES
-('testuser', 'test@example.com', '$2b$10$ZtILaT9EXLGMcj0bah9O4usgz3XG.7MRBhslmBdQDJyb/UPUvSCfO'),
-('admin', 'admin@example.com', '$2b$10$j6DCBuJAnByRjz0sv0YRguf0AoVZQlG.aKUSfvu2EGMyTD20gyTcS')
+('Jean Dupont', 'user@gmail.com', '$2b$10$ZtILaT9EXLGMcj0bah9O4usgz3XG.7MRBhslmBdQDJyb/UPUvSCfO'),
+('admin', 'admin@gmail.com', '$2b$10$j6DCBuJAnByRjz0sv0YRguf0AoVZQlG.aKUSfvu2EGMyTD20gyTcS')
 ON CONFLICT (email) DO NOTHING;
 
 -- Vérifier les données
