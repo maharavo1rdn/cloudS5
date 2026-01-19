@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import User from '../models/User.js';
+import UserService from '../services/userService.js';
 import authenticateToken from '../middleware/auth.js';
 
 const router = Router();
@@ -7,41 +7,31 @@ const router = Router();
 // Route pour obtenir le profil de l'utilisateur connecté
 router.get('/profile', authenticateToken, async (req, res) => {
   try {
-    const user = await User.findByPk(req.user.id, {
-      attributes: { exclude: ['password'] } // Exclure le mot de passe
-    });
-
-    if (!user) {
-      return res.status(404).json({ message: 'Utilisateur non trouvé' });
-    }
-
+    const user = await UserService.getUserProfile(req.user.id);
     res.json(user);
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 });
 
-// Route pour obtenir un utilisateur par ID (admin seulement ou utilisateur lui-même)
+// Route pour obtenir un utilisateur par ID
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Vérifier si l'utilisateur demande son propre profil ou est admin
-    if (req.user.id !== parseInt(id)) {
-      return res.status(403).json({ message: 'Accès non autorisé' });
-    }
+    // Vérifier les permissions
+    UserService.checkUserPermission(req.user.id, id);
 
-    const user = await User.findByPk(id, {
-      attributes: { exclude: ['password'] }
-    });
-
-    if (!user) {
-      return res.status(404).json({ message: 'Utilisateur non trouvé' });
-    }
-
+    const user = await UserService.getUserById(id);
     res.json(user);
   } catch (error) {
-    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+    if (error.message === 'Utilisateur non trouvé') {
+      res.status(404).json({ message: error.message });
+    } else if (error.message === 'Accès non autorisé') {
+      res.status(403).json({ message: error.message });
+    } else {
+      res.status(500).json({ message: 'Erreur serveur', error: error.message });
+    }
   }
 });
 
@@ -51,27 +41,17 @@ router.put('/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
     const { username, email } = req.body;
 
-    // Vérifier si l'utilisateur met à jour son propre profil
-    if (req.user.id !== parseInt(id)) {
-      return res.status(403).json({ message: 'Accès non autorisé' });
-    }
+    // Vérifier les permissions
+    UserService.checkUserPermission(req.user.id, id);
 
-    const user = await User.findByPk(id);
-    if (!user) {
-      return res.status(404).json({ message: 'Utilisateur non trouvé' });
-    }
-
-    // Mettre à jour les champs
-    if (username) user.username = username;
-    if (email) user.email = email;
-
-    await user.save();
-
-    // Retourner l'utilisateur sans le mot de passe
-    const { password, ...userWithoutPassword } = user.toJSON();
-    res.json(userWithoutPassword);
+    const user = await UserService.updateUser(id, { username, email });
+    res.json(user);
   } catch (error) {
-    if (error.name === 'SequelizeUniqueConstraintError') {
+    if (error.message === 'Utilisateur non trouvé') {
+      res.status(404).json({ message: error.message });
+    } else if (error.message === 'Accès non autorisé') {
+      res.status(403).json({ message: error.message });
+    } else if (error.message.includes('unique constraint')) {
       res.status(400).json({ message: 'Username ou email déjà utilisé' });
     } else {
       res.status(500).json({ message: 'Erreur serveur', error: error.message });
@@ -79,25 +59,24 @@ router.put('/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Route pour supprimer un utilisateur (soft delete ou hard delete)
+// Route pour supprimer un utilisateur
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Vérifier si l'utilisateur supprime son propre compte
-    if (req.user.id !== parseInt(id)) {
-      return res.status(403).json({ message: 'Accès non autorisé' });
-    }
+    // Vérifier les permissions
+    UserService.checkUserPermission(req.user.id, id);
 
-    const user = await User.findByPk(id);
-    if (!user) {
-      return res.status(404).json({ message: 'Utilisateur non trouvé' });
-    }
-
-    await user.destroy();
-    res.json({ message: 'Utilisateur supprimé avec succès' });
+    const result = await UserService.deleteUser(id);
+    res.json(result);
   } catch (error) {
-    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+    if (error.message === 'Utilisateur non trouvé') {
+      res.status(404).json({ message: error.message });
+    } else if (error.message === 'Accès non autorisé') {
+      res.status(403).json({ message: error.message });
+    } else {
+      res.status(500).json({ message: 'Erreur serveur', error: error.message });
+    }
   }
 });
 

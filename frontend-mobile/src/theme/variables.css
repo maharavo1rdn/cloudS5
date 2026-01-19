@@ -1,0 +1,311 @@
+/* CloudS5 - Thème Premium Noir & Blanc */
+
+:root {
+  /* ===== Couleurs Principales ===== */
+  --ion-color-primary: #000000;
+  --ion-color-primary-rgb: 0, 0, 0;
+  --ion-color-primary-contrast: #ffffff;
+  --ion-color-primary-contrast-rgb: 255, 255, 255;
+  --ion-color-primary-shade: #1a1a1a;
+  --ion-color-primary-tint: #2a2a2a;
+
+  --ion-color-secondary: #424242;
+  --ion-color-secondary-rgb: 66, 66, 66;
+  --ion-color-secondary-contrast: #ffffff;
+  --ion-color-secondary-contrast-rgb: 255, 255, 255;
+  --ion-color-secondary-shade: #3a3a3a;
+  --ion-color-secondary-tint: #555555;
+
+  --ion-color-tertiary: #9e9e9e;
+  --ion-color-tertiary-rgb: 158, 158, 158;
+  --ion-color-tertiary-contrast: #ffffff;
+  --ion-color-tertiary-contrast-rgb: 255, 255, 255;
+  --ion-color-tertiary-shade: #8b8b8b;
+  --ion-color-tertiary-tint: #a8a8a8;
+
+  /* ===== Couleurs de Statut ===== */
+  --ion-color-success: #2e7d32;
+  --ion-color-success-rgb: 46, 125, 50;
+  --ion-color-success-contrast: #ffffff;
+  --ion-color-success-contrast-rgb: 255, 255, 255;
+  --ion-color-success-shade: #256d2c;
+  --ion-color-success-tint: #438a47;
+
+  --ion-color-warning: #f57c00;
+  --ion-color-warning-rgb: 245, 124, 0;
+  --ion-color-warning-contrast: #ffffff;
+  --ion-color-warning-contrast-rgb: 255, 255, 255;
+  --ion-color-warning-shade: #d86d00;
+  --ion-color-warning-tint: #f6891a;
+
+  --ion-color-danger: #d32f2f;
+  --ion-color-danger-rgb: 211, 47, 47;
+  --ion-color-danger-contrast: #ffffff;
+  --ion-color-danger-contrast-rgb: 255, 255, 255;
+  --ion-color-danger-shade: #ba2929;
+  --ion-color-danger-tint: #d74444;
+
+  --ion-color-medium: #666666;
+  --ion-color-medium-rgb: 102, 102, 102;
+  --ion-color-medium-contrast: #ffffff;
+  --ion-color-medium-contrast-rgb: 255, 255, 255;
+  --ion-color-medium-shade: #5a5a5a;
+  --ion-color-medium-tint: #757575;
+
+  --ion-color-light: #f5f5f5;
+  --ion-color-light-rgb: 245, 245, 245;
+  --ion-color-light-contrast: #000000;
+  --ion-color-light-contrast-rgb: 0, 0, 0;
+  --ion-color-light-shade: #d8d8d8;
+  --ion-color-light-tint: #f6f6f6;
+
+  --ion-color-dark: #000000;
+  --ion-color-dark-rgb: 0, 0, 0;
+  --ion-color-dark-contrast: #ffffff;
+  --ion-color-dark-contrast-rgb: 255, 255, 255;
+  --ion-color-dark-shade: #1a1a1a;
+  --ion-color-dark-tint: #2a2a2a;
+
+  /* ===== Backgrounds & Surfaces ===== */
+  --ion-background-color: #ffffff;
+  --ion-background-color-rgb: 255, 255, 255;
+
+  --ion-text-color: #000000;
+  --ion-text-color-rgb: 0, 0, 0;
+
+  --ion-text-color-secondary: #666666;
+  --ion-text-color-tertiary: #9e9e9e;
+
+  --ion-border-color: #e0e0e0;
+  --ion-card-background: #ffffff;
+
+  /* ===== Ombres Premium ===== */
+  --ion-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --ion-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.08);
+  --ion-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.12);
+  --ion-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.15);
+  --ion-shadow-xl: 0 12px 32px rgba(0, 0, 0, 0.18);
+
+  /* ===== Espacements ===== */
+  --ion-padding: 16px;
+  --ion-margin: 16px;
+
+  /* ===== Border Radius ===== */
+  --ion-border-radius-sm: 8px;
+  --ion-border-radius-md: 12px;
+  --ion-border-radius-lg: 16px;
+  --ion-border-radius-xl: 20px;
+
+  /* ===== Typographie ===== */
+  --ion-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Helvetica Neue', sans-serif;
+  
+  /* ===== Transitions ===== */
+  --ion-transition-fast: 0.2s ease;
+  --ion-transition-normal: 0.3s ease;
+  --ion-transition-slow: 0.4s ease;
+}
+
+/* ===== Mode Sombre (Optionnel) ===== */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ion-color-primary: #ffffff;
+    --ion-color-primary-rgb: 255, 255, 255;
+    --ion-color-primary-contrast: #000000;
+    --ion-color-primary-contrast-rgb: 0, 0, 0;
+    --ion-color-primary-shade: #e0e0e0;
+    --ion-color-primary-tint: #f5f5f5;
+
+    --ion-background-color: #000000;
+    --ion-background-color-rgb: 0, 0, 0;
+
+    --ion-text-color: #ffffff;
+    --ion-text-color-rgb: 255, 255, 255;
+
+    --ion-text-color-secondary: #9e9e9e;
+    --ion-text-color-tertiary: #666666;
+
+    --ion-border-color: #2a2a2a;
+    --ion-card-background: #1a1a1a;
+
+    /* Ombres mode sombre */
+    --ion-shadow-xs: 0 1px 2px rgba(255, 255, 255, 0.05);
+    --ion-shadow-sm: 0 2px 4px rgba(255, 255, 255, 0.08);
+    --ion-shadow-md: 0 4px 12px rgba(255, 255, 255, 0.12);
+    --ion-shadow-lg: 0 8px 24px rgba(255, 255, 255, 0.15);
+    --ion-shadow-xl: 0 12px 32px rgba(255, 255, 255, 0.18);
+  }
+}
+
+/* ===== Styles Globaux ===== */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scroll bars personnalisées */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--ion-color-light);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--ion-color-medium);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ion-color-dark);
+}
+
+/* Focus states premium */
+*:focus-visible {
+  outline: 2px solid var(--ion-color-primary);
+  outline-offset: 2px;
+}
+
+/* Boutons personnalisés */
+ion-button {
+  --border-radius: var(--ion-border-radius-md);
+  --box-shadow: var(--ion-shadow-md);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0.3px;
+}
+
+/* Cards personnalisées */
+ion-card {
+  --background: var(--ion-card-background);
+  border-radius: var(--ion-border-radius-lg);
+  box-shadow: var(--ion-shadow-md);
+  border: 1px solid var(--ion-border-color);
+}
+
+/* Inputs personnalisés */
+ion-input,
+ion-textarea {
+  --background: var(--ion-background-color);
+  --border-radius: var(--ion-border-radius-md);
+  --border-color: var(--ion-border-color);
+  --border-width: 2px;
+  --padding-start: 16px;
+  --padding-end: 16px;
+  font-weight: 500;
+}
+
+/* Toolbar personnalisée */
+ion-toolbar {
+  --background: var(--ion-background-color);
+  --border-color: var(--ion-border-color);
+  --color: var(--ion-text-color);
+}
+
+/* Header personnalisé */
+ion-header {
+  box-shadow: var(--ion-shadow-sm);
+}
+
+/* Tabs personnalisés */
+ion-tab-bar {
+  --background: var(--ion-background-color);
+  --border: 1px solid var(--ion-border-color);
+  box-shadow: var(--ion-shadow-md);
+}
+
+ion-tab-button {
+  --color: var(--ion-text-color-secondary);
+  --color-selected: var(--ion-color-primary);
+}
+
+/* Badges */
+ion-badge {
+  font-weight: 700;
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+/* Animations globales */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Classes utilitaires */
+.text-xs { font-size: 0.75rem; }
+.text-sm { font-size: 0.875rem; }
+.text-base { font-size: 1rem; }
+.text-lg { font-size: 1.125rem; }
+.text-xl { font-size: 1.25rem; }
+.text-2xl { font-size: 1.5rem; }
+.text-3xl { font-size: 1.875rem; }
+
+.font-light { font-weight: 300; }
+.font-normal { font-weight: 400; }
+.font-medium { font-weight: 500; }
+.font-semibold { font-weight: 600; }
+.font-bold { font-weight: 700; }
+.font-extrabold { font-weight: 800; }
+
+.shadow-xs { box-shadow: var(--ion-shadow-xs); }
+.shadow-sm { box-shadow: var(--ion-shadow-sm); }
+.shadow-md { box-shadow: var(--ion-shadow-md); }
+.shadow-lg { box-shadow: var(--ion-shadow-lg); }
+.shadow-xl { box-shadow: var(--ion-shadow-xl); }
+
+.rounded-sm { border-radius: var(--ion-border-radius-sm); }
+.rounded-md { border-radius: var(--ion-border-radius-md); }
+.rounded-lg { border-radius: var(--ion-border-radius-lg); }
+.rounded-xl { border-radius: var(--ion-border-radius-xl); }
+.rounded-full { border-radius: 9999px; }

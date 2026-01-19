@@ -1,64 +1,63 @@
 import { Router } from 'express';
-import { hash, compare } from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import User from '../models/User.js';
+import AuthService from '../services/authService.js';
 
 const router = Router();
 
-// Route d'inscription (pour tester)
+// Route d'inscription
 router.post('/register', async (req, res) => {
   try {
-    const { username, email, password } = req.body;
-
-    // Vérifier si l'utilisateur existe
-    const existingUser = await User.findOne({ where: { email } });
-    if (existingUser) {
-      return res.status(400).json({ message: 'Utilisateur déjà existant' });
+    if (!req.body) {
+      return res.status(400).json({ message: 'Corps de la requête manquant' });
     }
 
-    // Hasher le mot de passe
-    const hashedPassword = await hash(password, 10);
+    const { username, email, password } = req.body;
 
-    // Créer l'utilisateur
-    const user = await User.create({
-      username,
-      email,
-      password: hashedPassword,
-    });
+    // Validation basique
+    if (!username || !email || !password) {
+      return res.status(400).json({ message: 'Tous les champs sont requis' });
+    }
 
-    res.status(201).json({ message: 'Utilisateur créé', userId: user.id });
+    const user = await AuthService.register({ username, email, password });
+    res.status(201).json({ message: 'Utilisateur créé', user });
   } catch (error) {
-    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+    if (error.message === 'Utilisateur déjà existant avec cet email ou username') {
+      res.status(400).json({ message: error.message });
+    } else {
+      res.status(500).json({ message: 'Erreur serveur', error: error.message });
+    }
   }
 });
 
 // Route de connexion
 router.post('/login', async (req, res) => {
   try {
+    console.log('Requête reçue:', {
+      hasBody: !!req.body,
+      bodyKeys: req.body ? Object.keys(req.body) : 'no body',
+      contentType: req.headers['content-type'],
+      body: req.body
+    });
+
+    if (!req.body) {
+      return res.status(400).json({ message: 'Corps de la requête manquant' });
+    }
+
     const { email, password } = req.body;
 
-    // Trouver l'utilisateur
-    const user = await User.findOne({ where: { email } });
-    if (!user) {
-      return res.status(400).json({ message: 'Email ou mot de passe incorrect' });
+    // Validation basique
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email et mot de passe requis' });
     }
 
-    // Vérifier le mot de passe
-    const isPasswordValid = await compare(password, user.password);
-    if (!isPasswordValid) {
-      return res.status(400).json({ message: 'Email ou mot de passe incorrect' });
-    }
-
-    // Générer le token JWT
-    const token = jwt.sign(
-      { id: user.id, username: user.username, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
-    );
-
-    res.json({ message: 'Connexion réussie', token });
+    const result = await AuthService.login({ email, password });
+    res.json({ message: 'Connexion réussie', ...result });
   } catch (error) {
-    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+    if (error.message === 'Email ou mot de passe incorrect') {
+      res.status(400).json({ message: error.message });
+    } else {
+      console.log('ici',error.message)
+      res.status(500).json({ message: 'Erreur serveur', error: error.message });
+    }
   }
 });
 
