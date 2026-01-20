@@ -25,14 +25,17 @@ class AuthService {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Créer l'utilisateur
+    const defaultRole = await require('../models/Role.js').findOne({ where: { name: 'utilisateur' } });
     const user = await User.create({
       username,
       email,
       password: hashedPassword,
+      role_id: defaultRole ? defaultRole.id : null,
     });
 
     // Retourner l'utilisateur sans le mot de passe
-    const { password: _, ...userWithoutPassword } = user.toJSON();
+    const userWithRole = await User.findByPk(user.id, { include: [{ model: require('../models/Role.js'), as: 'role' }] });
+    const { password: _, ...userWithoutPassword } = userWithRole.toJSON();
     return userWithoutPassword;
   }
 
@@ -41,7 +44,7 @@ class AuthService {
     const { email, password } = credentials;
 
     // Trouver l'utilisateur
-    const user = await User.findOne({ where: { email } });
+    const user = await User.findOne({ where: { email }, include: [{ model: require('../models/Role.js'), as: 'role' }] });
     if (!user) {
       throw new Error('Email ou mot de passe incorrect');
     }
@@ -95,7 +98,9 @@ class AuthService {
       {
         id: user.id,
         username: user.username,
-        email: user.email
+        email: user.email,
+        role: user.role ? user.role.name : null,
+        level: user.role ? user.role.level : 1
       },
       process.env.JWT_SECRET,
       { expiresIn: `${sessionLifetime}h` }
