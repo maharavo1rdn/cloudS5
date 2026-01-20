@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import LoginAttempt from '../models/LoginAttempt.js';
 import Setting from '../models/Setting.js';
+import Role from '../models/Role.js';
 
 class AuthService {
   // Fonction d'inscription
@@ -25,7 +26,7 @@ class AuthService {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Créer l'utilisateur
-    const defaultRole = await require('../models/Role.js').findOne({ where: { name: 'utilisateur' } });
+    const defaultRole = await Role.findOne({ where: { name: 'utilisateur' } });
     const user = await User.create({
       username,
       email,
@@ -34,7 +35,7 @@ class AuthService {
     });
 
     // Retourner l'utilisateur sans le mot de passe
-    const userWithRole = await User.findByPk(user.id, { include: [{ model: require('../models/Role.js'), as: 'role' }] });
+    const userWithRole = await User.findByPk(user.id, { include: [{ model: Role, as: 'role' }] });
     const { password: _, ...userWithoutPassword } = userWithRole.toJSON();
     return userWithoutPassword;
   }
@@ -44,7 +45,7 @@ class AuthService {
     const { email, password } = credentials;
 
     // Trouver l'utilisateur
-    const user = await User.findOne({ where: { email }, include: [{ model: require('../models/Role.js'), as: 'role' }] });
+    const user = await User.findOne({ where: { email }, include: [{ model: Role, as: 'role' }] });
     if (!user) {
       throw new Error('Email ou mot de passe incorrect');
     }
@@ -108,6 +109,13 @@ class AuthService {
 
     // Retourner l'utilisateur sans mot de passe et le token
     const { password: _, ...userWithoutPassword } = user.toJSON();
+    // Nettoyer le rôle pour éviter les problèmes de sérialisation
+    if (userWithoutPassword.role) {
+      userWithoutPassword.role = {
+        name: userWithoutPassword.role.name,
+        level: userWithoutPassword.role.level
+      };
+    }
     return {
       user: userWithoutPassword,
       token
