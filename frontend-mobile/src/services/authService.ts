@@ -18,8 +18,8 @@ interface FirebaseError {
 }
 
 class AuthService {
-  private signInUrl = import.meta.env.VITE_SIGN_IN_FIREBASE_URL || '';
-  private signUpUrl = import.meta.env.VITE_SIGN_UP_FIREBASE_URL || '';
+  private signInUrl = import.meta.env.SIGN_IN_FIREBASE_URL || 'https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=AIzaSyBLueXEEBaC4KRaPYBQ5RmcGCL5sxzwa6E';
+  private signUpUrl = import.meta.env.SIGN_UP_FIREBASE_URL || 'https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=AIzaSyBLueXEEBaC4KRaPYBQ5RmcGCL5sxzwa6E';
 
   async login(email: string, password: string): Promise<FirebaseAuthResponse> {
     try {
@@ -34,7 +34,7 @@ class AuthService {
           returnSecureToken: true,
         }),
       });
-
+      console.log(this.signInUrl);
       const data = await response.json();
 
       if (!response.ok) {
@@ -42,7 +42,6 @@ class AuthService {
         throw new Error(this.getErrorMessage(error.error.message));
       }
 
-      // Stocker le token et les données utilisateur
       await this.setToken(data.idToken);
       await this.setUserData({
         email: data.email,
