@@ -4,7 +4,22 @@ import authenticateToken from '../middleware/auth.js';
 
 const router = Router();
 
-// Route pour obtenir le profil de l'utilisateur connecté
+/**
+ * @swagger
+ * /api/users/profile:
+ *   get:
+ *     summary: Obtenir le profil de l'utilisateur connecté
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Profil utilisateur
+ *       401:
+ *         description: Non autorisé
+ *       500:
+ *         description: Erreur serveur
+ */
 router.get('/profile', authenticateToken, async (req, res) => {
   try {
     const user = await UserService.getUserProfile(req.user.id);
@@ -14,7 +29,30 @@ router.get('/profile', authenticateToken, async (req, res) => {
   }
 });
 
-// Route pour obtenir un utilisateur par ID
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   get:
+ *     summary: Obtenir un utilisateur par ID
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Utilisateur trouvé
+ *       404:
+ *         description: Utilisateur non trouvé
+ *       401:
+ *         description: Non autorisé
+ *       500:
+ *         description: Erreur serveur
+ */
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
