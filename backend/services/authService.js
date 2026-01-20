@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import LoginAttempt from '../models/LoginAttempt.js';
+import Setting from '../models/Setting.js';
 
 class AuthService {
   // Fonction d'inscription
