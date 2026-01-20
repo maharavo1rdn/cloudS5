@@ -1,5 +1,6 @@
 import { Preferences } from '@capacitor/preferences';
 import userService, { UserProfile } from './userService';
+import loginAttemptService from './loginAttemptService';
 
 const TOKEN_KEY = 'auth_token';
 const USER_KEY = 'user_data';
@@ -25,6 +26,16 @@ class AuthService {
 
   async login(email: string, password: string): Promise<FirebaseAuthResponse> {
     try {
+      // Check login attempts in Firestore first
+      const attempt = await loginAttemptService.getAttempt(email);
+      if (attempt && attempt.blocked_until) {
+        const blockedUntil = attempt.blocked_until?.toDate ? attempt.blocked_until.toDate() : new Date(attempt.blocked_until);
+        if (new Date() < blockedUntil) {
+          const remaining = Math.ceil((blockedUntil.getTime() - Date.now()) / 60000);
+          throw new Error(`Compte temporairement bloqué. Réessayez dans ${remaining} minute(s).`);
+        }
+      }
+
       const response = await fetch(this.signInUrl, {
         method: 'POST',
         headers: {
@@ -40,9 +51,14 @@ class AuthService {
       const data = await response.json();
 
       if (!response.ok) {
+        // Login failed: increment attempts
+        await loginAttemptService.incrementAttempt(email);
         const error = data as FirebaseError;
         throw new Error(this.getErrorMessage(error.error.message));
       }
+
+      // Successful login: reset attempts
+      await loginAttemptService.resetAttempt(email);
 
       // Récupérer ou créer le profil utilisateur dans Firestore
       const userProfile = await userService.getOrCreateUserProfile(data.localId, data.email);
@@ -57,6 +73,9 @@ class AuthService {
         localId: data.localId,
       });
       await this.setUserRole(userRole);
+
+      // Start session expiration timer
+      this.startSessionTimer();
 
       return data;
     } catch (error) {
@@ -105,7 +124,13 @@ class AuthService {
     }
   }
 
+  private sessionTimer: any = null;
+
   async logout(): Promise<void> {
+    if (this.sessionTimer) {
+      clearTimeout(this.sessionTimer);
+      this.sessionTimer = null;
+    }
     await Preferences.remove({ key: TOKEN_KEY });
     await Preferences.remove({ key: USER_KEY });
     await Preferences.remove({ key: ROLE_KEY });
@@ -118,7 +143,17 @@ class AuthService {
 
   async isAuthenticated(): Promise<boolean> {
     const token = await this.getToken();
-    return !!token;
+    if (!token) return false;
+    // verify token expiry
+    const valid = this.isTokenValid(token);
+    if (!valid) {
+      // cleanup expired token
+      await this.logout();
+      return false;
+    }
+    // ensure session timer is started
+    this.startSessionTimer();
+    return true;
   }
 
   async getUserData(): Promise<any> {
@@ -147,6 +182,42 @@ class AuthService {
 
   private async setToken(token: string): Promise<void> {
     await Preferences.set({ key: TOKEN_KEY, value: token });
+  }
+
+  private decodeToken(token: string): any | null {
+    try {
+      const payload = token.split('.')[1];
+      const decoded = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+      return decoded;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  private isTokenValid(token: string): boolean {
+    const decoded = this.decodeToken(token);
+    if (!decoded || !decoded.exp) return false;
+    const now = Math.floor(Date.now() / 1000);
+    return decoded.exp > now;
+  }
+
+  private async startSessionTimer() {
+    const token = await this.getToken();
+    if (!token) return;
+    const decoded = this.decodeToken(token);
+    if (!decoded || !decoded.exp) return;
+    const expiresAt = decoded.exp * 1000;
+    const msLeft = expiresAt - Date.now();
+    if (msLeft <= 0) {
+      await this.logout();
+      return;
+    }
+    if (this.sessionTimer) clearTimeout(this.sessionTimer);
+    this.sessionTimer = setTimeout(async () => {
+      await this.logout();
+      // optional: notify user via an event or toast; for now we console
+      console.log('Session expirée, déconnexion automatique');
+    }, msLeft);
   }
 
   private async setUserData(userData: any): Promise<void> {

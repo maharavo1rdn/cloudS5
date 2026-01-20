@@ -2,7 +2,7 @@ const admin = require('firebase-admin');
 
 // ⚠️ IMPORTANT: Remplacez par votre propre clé de service Firebase
 // Téléchargez-la depuis Firebase Console > Paramètres du projet > Comptes de service > Générer une nouvelle clé privée
-const serviceAccount = require('./clouds5-49c07-firebase-adminsdk-fbsvc-0bdd70a7ce.json');
+const serviceAccount = require('./clouds5-49c07-firebase-adminsdk-fbsvc-b55316280a.json');
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -207,8 +207,33 @@ async function seedDatabase() {
       console.log(`✅ Point ${point.id} pour route ${routeId} importé`);
     }
 
+    // 6. Importer les settings
+    console.log('⚙️ Importation des settings...');
+    await db.collection('settings').doc('max_login_attempts').set({ code: 'max_login_attempts', value: '3', type: 'number', date: admin.firestore.Timestamp.now() });
+    await db.collection('settings').doc('session_lifetime_hours').set({ code: 'session_lifetime_hours', value: '24', type: 'number', date: admin.firestore.Timestamp.now() });
+    await db.collection('settings').doc('login_block_minutes').set({ code: 'login_block_minutes', value: '15', type: 'number', date: admin.firestore.Timestamp.now() });
+    console.log('✅ Settings importés');
+
+    // 7. Initialiser quelques tentatives de connexion pour les tests
+    console.log('🔐 Initialisation des tentatives de connexion...');
+    await db.collection('login_attempts').doc(encodeURIComponent('test@example.com')).set({ attempts: 1, last_attempt: admin.firestore.Timestamp.now(), blocked_until: null });
+    await db.collection('login_attempts').doc(encodeURIComponent('other@example.com')).set({ attempts: 3, last_attempt: admin.firestore.Timestamp.fromDate(new Date(Date.now() - 2 * 60 * 1000)), blocked_until: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 13 * 60 * 1000)) });
+    console.log('✅ Tentatives initialisées');
+
     console.log('🎉 Toutes les données ont été importées avec succès !');
     console.log('');
+    // 6. Importer les settings
+    console.log('⚙️ Importation des settings...');
+    await db.collection('settings').doc('max_login_attempts').set({ code: 'max_login_attempts', value: '3', type: 'number', date: admin.firestore.Timestamp.now() });
+    await db.collection('settings').doc('session_lifetime_hours').set({ code: 'session_lifetime_hours', value: '1', type: 'number', date: admin.firestore.Timestamp.now() });
+    console.log('✅ Settings importés');
+
+    // 7. Initialiser quelques tentatives de connexion pour les tests
+    console.log('🔐 Initialisation des tentatives de connexion...');
+    await db.collection('login_attempts').doc(encodeURIComponent('test@example.com')).set({ attempts: 1, last_attempt: admin.firestore.Timestamp.now(), blocked_until: null });
+    await db.collection('login_attempts').doc(encodeURIComponent('other@example.com')).set({ attempts: 3, last_attempt: admin.firestore.Timestamp.fromDate(new Date(Date.now() - 2 * 60 * 1000)), blocked_until: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 13 * 60 * 1000)) });
+    console.log('✅ Tentatives initialisées');
+
     console.log('📋 Résumé :');
     console.log(`   • ${problemes.length} types de problèmes`);
     console.log(`   • ${users.length} utilisateurs`);

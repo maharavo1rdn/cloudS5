@@ -8,6 +8,9 @@
           <ion-button v-if="isManager" @click="openRegisterModal" fill="clear">
             <ion-icon :icon="personAdd" slot="icon-only"></ion-icon>
           </ion-button>
+          <ion-button v-if="isManager" @click="showBlockedModal = true" fill="clear" title="Utilisateurs bloqués">
+            <ion-icon :icon="warning" slot="icon-only"></ion-icon>
+          </ion-button>
           <ion-button @click="handleLogout" fill="clear">
             <ion-icon :icon="logOut" slot="icon-only"></ion-icon>
           </ion-button>
@@ -223,6 +226,20 @@
       @close="closeEditModal"
       @success="onEditSuccess"
     />
+
+    <ResetAttemptsModal
+      v-if="isManager"
+      :is-open="showResetModal"
+      @close="showResetModal = false"
+      @success="showResetModal = false"
+    />
+
+    <BlockedUsersModal
+      v-if="isManager"
+      :is-open="showBlockedModal"
+      @close="showBlockedModal = false"
+      @success="showBlockedModal = false"
+    />
   </ion-page>
 </template>
 
@@ -250,6 +267,8 @@ import routeService from '../services/routeService';
 import RegisterUserModal from '../components/modals/RegisterUserModal.vue';
 import ReportIssueModal from '../components/modals/ReportIssueModal.vue';
 import EditRouteModal from '../components/modals/EditRouteModal.vue';
+import ResetAttemptsModal from '../components/modals/ResetAttemptsModal.vue';
+import BlockedUsersModal from '../components/modals/BlockedUsersModal.vue';
 import ConnectivityBanner from '../components/ConnectivityBanner.vue';
 import { Route } from '../types/route.types';
 
@@ -259,6 +278,8 @@ const isManager = ref(false);
 const showRegisterModal = ref(false);
 const showReportModal = ref(false);
 const showEditModal = ref(false);
+const showResetModal = ref(false);
+const showBlockedModal = ref(false);
 const selectedRoute = ref<Route | null>(null);
 const currentLocation = ref<{ lat: number; lng: number } | null>(null);
 const clickedLocation = ref<{ lat: number; lng: number } | null>(null);
