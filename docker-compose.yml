@@ -31,8 +31,9 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/script.sql:/docker-entrypoint-initdb.d/script.sql
-      - ./backend/scriptRoutes.sql:/docker-entrypoint-initdb.d/scriptRoutes.sql
+      - ./backend/script.sql:/docker-entrypoint-initdb.d/01-script.sql
+      - ./backend/scriptRoutes.sql:/docker-entrypoint-initdb.d/02-scriptRoutes.sql
+      - ./backend/dataTest.sql:/docker-entrypoint-initdb.d/03-dataTest.sql
     networks:
       - app-network
 
