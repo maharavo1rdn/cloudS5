@@ -2,89 +2,111 @@
   <ion-modal :is-open="isOpen" @didDismiss="closeModal">
     <ion-header>
       <ion-toolbar>
-        <ion-title>Inscrire un utilisateur</ion-title>
+        <ion-title>Nouvel utilisateur</ion-title>
         <ion-buttons slot="end">
-          <ion-button @click="closeModal">
-            <ion-icon :icon="close"></ion-icon>
+          <ion-button @click="closeModal" fill="clear">
+            <ion-icon :icon="close" slot="icon-only"></ion-icon>
           </ion-button>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
 
     <ion-content class="ion-padding">
+      <div class="modal-header">
+        <div class="header-icon">
+          <ion-icon :icon="personAdd"></ion-icon>
+        </div>
+        <h2 class="header-title">Créer un compte</h2>
+        <p class="header-subtitle">Renseignez les informations du nouvel utilisateur</p>
+      </div>
+
       <form @submit.prevent="handleRegister" class="register-form">
-        <!-- Email Input -->
         <div class="input-wrapper">
           <label class="input-label">
-            <ion-icon :icon="mail" class="label-icon"></ion-icon>
-            Adresse email
+            <ion-icon :icon="mail"></ion-icon>
+            <span>Adresse email</span>
           </label>
-          <div class="input-container">
+          <div class="input-container" :class="{ focused: emailFocused }">
             <ion-input
               v-model="form.email"
               type="email"
               required
               :disabled="loading"
-              placeholder="exemple@email.com"
-              class="custom-input"
-              autocomplete="email"
+              placeholder="utilisateur@exemple.com"
+              @ionFocus="emailFocused = true"
+              @ionBlur="emailFocused = false"
             ></ion-input>
           </div>
         </div>
 
-        <!-- Password Input -->
         <div class="input-wrapper">
           <label class="input-label">
-            <ion-icon :icon="lockClosed" class="label-icon"></ion-icon>
-            Mot de passe
+            <ion-icon :icon="lockClosed"></ion-icon>
+            <span>Mot de passe</span>
           </label>
-          <div class="input-container">
+          <div class="input-container" :class="{ focused: passwordFocused }">
             <ion-input
               v-model="form.password"
               :type="showPassword ? 'text' : 'password'"
               required
               :disabled="loading"
-              placeholder="••••••••"
-              class="custom-input"
-              autocomplete="new-password"
+              placeholder="Minimum 6 caractères"
+              @ionFocus="passwordFocused = true"
+              @ionBlur="passwordFocused = false"
             ></ion-input>
             <button
               type="button"
               @click="togglePassword"
               class="password-toggle"
               :disabled="loading"
+              tabindex="-1"
             >
               <ion-icon :icon="showPassword ? eyeOff : eye"></ion-icon>
             </button>
           </div>
+          <div class="password-strength">
+            <div class="strength-bar">
+              <div 
+                class="strength-fill" 
+                :class="passwordStrengthClass"
+                :style="{ width: passwordStrength + '%' }"
+              ></div>
+            </div>
+            <span class="strength-text">{{ passwordStrengthText }}</span>
+          </div>
         </div>
 
-        <!-- Error Message -->
-        <div v-if="error" class="error-message">
-          <ion-icon :icon="alertCircle" class="error-icon"></ion-icon>
-          <span class="error-text">{{ error }}</span>
+        <div v-if="error" class="alert alert-error">
+          <ion-icon :icon="alertCircle"></ion-icon>
+          <div class="alert-content">
+            <span class="alert-title">Erreur</span>
+            <span class="alert-message">{{ error }}</span>
+          </div>
         </div>
 
-        <!-- Success Message -->
-        <div v-if="success" class="success-message">
-          <ion-icon :icon="checkmarkCircle" class="success-icon"></ion-icon>
-          <span class="success-text">{{ success }}</span>
+        <div v-if="success" class="alert alert-success">
+          <ion-icon :icon="checkmarkCircle"></ion-icon>
+          <div class="alert-content">
+            <span class="alert-title">Succès</span>
+            <span class="alert-message">{{ success }}</span>
+          </div>
         </div>
 
-        <!-- Offline Warning -->
-        <div v-if="!isOnline" class="offline-message">
-          <ion-icon :icon="cloudOffline" class="offline-icon"></ion-icon>
-          <span class="offline-text">Mode hors ligne - L'inscription sera synchronisée plus tard</span>
+        <div v-if="!isOnline" class="alert alert-warning">
+          <ion-icon :icon="cloudOffline"></ion-icon>
+          <div class="alert-content">
+            <span class="alert-title">Hors ligne</span>
+            <span class="alert-message">Connexion internet requise pour créer un compte</span>
+          </div>
         </div>
 
-        <!-- Submit Button -->
         <ion-button
           type="submit"
           expand="block"
           :disabled="loading || !isFormValid"
           class="submit-button"
         >
-          <ion-spinner v-if="loading" name="crescent" class="button-spinner"></ion-spinner>
+          <ion-spinner v-if="loading" name="crescent"></ion-spinner>
           <span v-else>Créer le compte</span>
         </ion-button>
       </form>
@@ -106,7 +128,17 @@ import {
   IonSpinner,
   IonIcon,
 } from '@ionic/vue';
-import { alertCircle, checkmarkCircle, close, mail, lockClosed, eye, eyeOff, cloudOffline } from 'ionicons/icons';
+import { 
+  alertCircle, 
+  checkmarkCircle, 
+  close, 
+  mail, 
+  lockClosed, 
+  eye, 
+  eyeOff, 
+  cloudOffline,
+  personAdd
+} from 'ionicons/icons';
 import authService from '../../services/authService';
 
 interface Props {
@@ -126,9 +158,37 @@ const error = ref('');
 const success = ref('');
 const showPassword = ref(false);
 const isOnline = ref(true);
+const emailFocused = ref(false);
+const passwordFocused = ref(false);
 
 const isFormValid = computed(() => {
   return form.value.email.trim() !== '' && form.value.password.trim().length >= 6;
+});
+
+const passwordStrength = computed(() => {
+  const password = form.value.password;
+  if (password.length === 0) return 0;
+  if (password.length < 6) return 25;
+  if (password.length < 8) return 50;
+  if (password.length < 10) return 75;
+  return 100;
+});
+
+const passwordStrengthClass = computed(() => {
+  const strength = passwordStrength.value;
+  if (strength <= 25) return 'weak';
+  if (strength <= 50) return 'fair';
+  if (strength <= 75) return 'good';
+  return 'strong';
+});
+
+const passwordStrengthText = computed(() => {
+  const strength = passwordStrength.value;
+  if (strength === 0) return '';
+  if (strength <= 25) return 'Faible';
+  if (strength <= 50) return 'Moyen';
+  if (strength <= 75) return 'Bon';
+  return 'Fort';
 });
 
 const togglePassword = () => {
@@ -143,23 +203,21 @@ const handleRegister = async () => {
   success.value = '';
 
   try {
-    // Vérifier la connectivité avant l'inscription
     isOnline.value = await authService.checkFirestoreConnectivity();
 
     if (!isOnline.value) {
       throw new Error('Connexion internet requise pour créer un compte. Veuillez vérifier votre connexion et réessayer.');
     }
 
-    // Inscrire l'utilisateur
     await authService.register(form.value.email, form.value.password);
 
-    success.value = 'Compte créé avec succès !';
+    success.value = 'Compte créé avec succès';
     setTimeout(() => {
       closeModal();
     }, 2000);
   } catch (err) {
     console.error('Register error:', err);
-    error.value = err instanceof Error ? err.message : 'Erreur lors de la création du compte.';
+    error.value = err instanceof Error ? err.message : 'Erreur lors de la création du compte';
   } finally {
     loading.value = false;
   }
@@ -170,21 +228,74 @@ const closeModal = () => {
   form.value.password = '';
   error.value = '';
   success.value = '';
+  emailFocused.value = false;
+  passwordFocused.value = false;
   emit('close');
 };
 </script>
 
 <style scoped>
-.register-form {
-  width: 100%;
-}
-
 ion-toolbar {
-  --background: #000000;
+  --background: #0f172a;
   --color: #ffffff;
+  --border-width: 0;
+  --padding-top: 12px;
+  --padding-bottom: 12px;
 }
 
-/* Input Styles */
+ion-title {
+  font-weight: 600;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+
+ion-content {
+  --background: #f8fafc;
+}
+
+.modal-header {
+  text-align: center;
+  margin-bottom: 32px;
+  padding: 24px 0;
+}
+
+.header-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.2);
+}
+
+.header-icon ion-icon {
+  font-size: 32px;
+  color: white;
+}
+
+.header-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 8px 0;
+  letter-spacing: -0.02em;
+}
+
+.header-subtitle {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+  font-weight: 500;
+}
+
+.register-form {
+  max-width: 480px;
+  margin: 0 auto;
+}
+
 .input-wrapper {
   margin-bottom: 24px;
 }
@@ -193,144 +304,259 @@ ion-toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.9rem;
+  font-size: 13px;
   font-weight: 600;
-  color: #000000;
+  color: #0f172a;
   margin-bottom: 8px;
+  letter-spacing: -0.01em;
 }
 
-.label-icon {
+.input-label ion-icon {
   font-size: 18px;
-  color: #666666;
+  color: #64748b;
 }
 
 .input-container {
   position: relative;
-  background: #ffffff;
-  border: 2px solid #e0e0e0;
-  border-radius: 12px;
-  transition: all 0.3s ease;
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 16px;
+  transition: all 0.2s ease;
   overflow: hidden;
 }
 
-.input-container:focus-within {
-  border-color: #000000;
-  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.05);
+.input-container.focused {
+  border-color: #0f172a;
+  box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.1);
 }
 
-.custom-input {
+.input-container ion-input {
   --padding-start: 16px;
-  --padding-end: 16px;
+  --padding-end: 48px;
   --padding-top: 14px;
   --padding-bottom: 14px;
-  --placeholder-color: #9e9e9e;
-  --color: #000000;
-  font-size: 1rem;
+  --placeholder-color: #94a3b8;
+  --color: #0f172a;
+  font-size: 15px;
   font-weight: 500;
 }
 
 .password-toggle {
   position: absolute;
-  right: 12px;
+  right: 8px;
   top: 50%;
   transform: translateY(-50%);
-  background: none;
+  background: transparent;
   border: none;
   padding: 8px;
   cursor: pointer;
-  color: #666666;
-  transition: color 0.3s ease;
+  color: #64748b;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 6px;
 }
 
-.password-toggle:hover {
-  color: #000000;
+.password-toggle:hover:not(:disabled) {
+  color: #0f172a;
+  background: #f1f5f9;
 }
 
 .password-toggle ion-icon {
   font-size: 20px;
 }
 
-/* Error Message */
-.error-message {
+.password-strength {
+  margin-top: 8px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  background: #fff5f5;
-  border: 1px solid #ffebee;
-  border-radius: 8px;
-  margin-bottom: 20px;
+  gap: 12px;
 }
 
-.error-icon {
-  font-size: 20px;
-  color: #d32f2f;
-  flex-shrink: 0;
+.strength-bar {
+  flex: 1;
+  height: 4px;
+  background: #e2e8f0;
+  border-radius: 2px;
+  overflow: hidden;
 }
 
-.error-text {
-  font-size: 0.9rem;
-  color: #d32f2f;
-  font-weight: 500;
+.strength-fill {
+  height: 100%;
+  transition: all 0.3s ease;
+  border-radius: 2px;
 }
 
-/* Offline Message */
-.offline-message {
+.strength-fill.weak {
+  background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+}
+
+.strength-fill.fair {
+  background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%);
+}
+
+.strength-fill.good {
+  background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
+}
+
+.strength-fill.strong {
+  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+}
+
+.strength-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  min-width: 60px;
+  text-align: right;
+}
+
+.alert {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  background: #fff3cd;
-  border: 1px solid #ffeaa7;
-  border-radius: 8px;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
   margin-bottom: 20px;
+  border: 1px solid;
 }
 
-.offline-icon {
-  font-size: 20px;
-  color: #856404;
+.alert ion-icon {
+  font-size: 22px;
   flex-shrink: 0;
+  margin-top: 2px;
 }
 
-.offline-text {
-  font-size: 0.9rem;
-  color: #856404;
+.alert-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.alert-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.alert-message {
+  font-size: 13px;
   font-weight: 500;
+  line-height: 1.4;
 }
 
-/* Submit Button */
+.alert-error {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.alert-error ion-icon {
+  color: #dc2626;
+}
+
+.alert-error .alert-title {
+  color: #991b1b;
+}
+
+.alert-error .alert-message {
+  color: #b91c1c;
+}
+
+.alert-success {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.alert-success ion-icon {
+  color: #16a34a;
+}
+
+.alert-success .alert-title {
+  color: #14532d;
+}
+
+.alert-success .alert-message {
+  color: #15803d;
+}
+
+.alert-warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.alert-warning ion-icon {
+  color: #d97706;
+}
+
+.alert-warning .alert-title {
+  color: #78350f;
+}
+
+.alert-warning .alert-message {
+  color: #92400e;
+}
+
 .submit-button {
-  --background: #000000;
-  --background-hover: #1a1a1a;
-  --background-activated: #2a2a2a;
+  --background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  --background-hover: linear-gradient(135deg, #1e293b 0%, #334155 100%);
   --color: #ffffff;
-  --border-radius: 12px;
+  --border-radius: 16px;
   --padding-top: 16px;
   --padding-bottom: 16px;
-  --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  font-size: 1rem;
+  --box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+  font-size: 15px;
   font-weight: 700;
   text-transform: none;
-  letter-spacing: 0.3px;
-  transition: all 0.3s ease;
+  letter-spacing: -0.01em;
+  margin-top: 8px;
+  transition: all 0.2s ease;
 }
 
 .submit-button:hover:not(:disabled) {
-  --box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  --box-shadow: 0 6px 16px rgba(15, 23, 42, 0.3);
   transform: translateY(-1px);
 }
 
-.submit-button:disabled {
-  --background: #e0e0e0;
-  --color: #9e9e9e;
-  opacity: 1;
+.submit-button::part(native) {
+  transition: all 0.2s ease;
 }
 
-.button-spinner {
+.submit-button:disabled {
+  --background: #e2e8f0;
+  --color: #94a3b8;
+  opacity: 1;
+  --box-shadow: none;
+}
+
+.submit-button ion-spinner {
   width: 20px;
   height: 20px;
+}
+
+@media (max-width: 640px) {
+  .modal-header {
+    padding: 16px 0;
+    margin-bottom: 24px;
+  }
+
+  .header-icon {
+    width: 56px;
+    height: 56px;
+    margin-bottom: 12px;
+  }
+
+  .header-icon ion-icon {
+    font-size: 28px;
+  }
+
+  .header-title {
+    font-size: 20px;
+  }
+
+  .header-subtitle {
+    font-size: 13px;
+  }
 }
 </style>
