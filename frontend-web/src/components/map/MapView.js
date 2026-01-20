@@ -84,6 +84,9 @@ const SIGNALEMENTS_STATIQUES = [
 const MapView = ({ onMarkerClick }) => {
   // Utiliser données statiques directement
   const signalements = SIGNALEMENTS_STATIQUES;
+  
+  console.log('MapView rendu avec', signalements.length, 'signalements');
+  
   const [viewState, setViewState] = useState({
     latitude: -18.8792,
     longitude: 47.5079,
