@@ -8,13 +8,17 @@
           <ion-button v-if="isManager" @click="openRegisterModal" fill="clear">
             <ion-icon :icon="personAdd" slot="icon-only"></ion-icon>
           </ion-button>
+          <ion-button v-if="isManager" @click="syncData" :disabled="isLoadingRoutes" fill="clear" title="Synchroniser les données">
+            <ion-icon v-if="!isLoadingRoutes" :icon="refreshCircle" slot="icon-only"></ion-icon>
+            <ion-spinner v-else name="crescent" slot="icon-only"></ion-spinner>
+          </ion-button>
           <ion-button v-if="isManager" @click="showBlockedModal = true" fill="clear" title="Utilisateurs bloqués">
             <ion-icon :icon="warning" slot="icon-only"></ion-icon>
           </ion-button>
           <ion-button @click="handleLogout" fill="clear">
             <ion-icon :icon="logOut" slot="icon-only"></ion-icon>
           </ion-button>
-        </ion-buttons>
+        </ion-buttons>    
       </ion-toolbar>
 
       <!-- Toolbar Secondaire (Filtres) - Intégrée dans le header pour la visibilité -->
@@ -259,7 +263,7 @@ import {
   IonFabButton,
   IonSpinner,
 } from '@ionic/vue';
-import { logOut, add, personAdd, locate, warning, alertCircle, construct, checkmarkCircle, map as mapIcon, list, person, documentOutline, pencil } from 'ionicons/icons';
+import { logOut, add, personAdd, locate, warning, alertCircle, construct, checkmarkCircle, map as mapIcon, list, person, documentOutline, pencil, refreshCircle } from 'ionicons/icons';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import authService from '../services/authService';
@@ -432,6 +436,15 @@ const loadRoutes = async () => {
     routes.value = [];
   } finally {
     isLoadingRoutes.value = false;
+  }
+};
+
+const syncData = async () => {
+  try {
+    // Reload routes and refresh UI
+    await loadRoutes();
+  } catch (err) {
+    console.error('Erreur de synchronisation:', err);
   }
 };
 
