@@ -20,10 +20,22 @@ export const AuthProvider = ({ children }) => {
     const checkAuth = async () => {
       if (authAPI.isAuthenticated()) {
         try {
-          // En mode mock, on récupère depuis localStorage
+          // Récupérer l'utilisateur depuis localStorage
           const savedUser = localStorage.getItem('user');
           if (savedUser) {
             setUser(JSON.parse(savedUser));
+          } else {
+            // Essayer de récupérer depuis l'API
+            try {
+              const userData = await authAPI.getCurrentUser();
+              if (userData && userData.user) {
+                setUser(userData.user);
+                localStorage.setItem('user', JSON.stringify(userData.user));
+              }
+            } catch (apiError) {
+              console.error('Erreur API getCurrentUser:', apiError);
+              authAPI.logout();
+            }
           }
         } catch (error) {
           console.error('Erreur lors de la vérification auth:', error);
@@ -36,60 +48,51 @@ export const AuthProvider = ({ children }) => {
     checkAuth();
   }, []);
 
-  // Login
+  // Login - Connexion à l'API backend
   const login = async (email, password) => {
     try {
-      // En mode mock pour le développement
-      // Simulation de différents profils
-      let mockUser;
+      const response = await authAPI.login(email, password);
       
-      if (email === 'manager@tana.mg') {
-        mockUser = {
-          id: 1,
-          email: 'manager@tana.mg',
-          nom: 'Rakoto',
-          prenom: 'Jean',
-          role: 'manager'
+      if (response.token && response.user) {
+        // Sauvegarder l'utilisateur
+        const userData = {
+          id: response.user.id,
+          email: response.user.email,
+          username: response.user.username,
+          role: response.user.role?.name || 'utilisateur',
+          roleLevel: response.user.role?.level || 1
         };
+        
+        localStorage.setItem('user', JSON.stringify(userData));
+        setUser(userData);
+
+        return { success: true, user: userData };
       } else {
-        mockUser = {
-          id: 2,
-          email: email,
-          nom: 'Utilisateur',
-          prenom: 'Test',
-          role: 'utilisateur'
-        };
+        throw new Error('Réponse invalide du serveur');
       }
-
-      // Simuler un token
-      localStorage.setItem('token', 'mock-jwt-token-' + Date.now());
-      localStorage.setItem('user', JSON.stringify(mockUser));
-      setUser(mockUser);
-
-      return { success: true, user: mockUser };
     } catch (error) {
+      console.error('Erreur login:', error);
       throw error;
     }
   };
 
-  // Register
+  // Register - Inscription via l'API backend
   const register = async (userData) => {
     try {
-      // Mode mock
-      const newUser = {
-        id: Date.now(),
+      const response = await authAPI.register({
+        username: `${userData.prenom} ${userData.nom}`,
         email: userData.email,
-        nom: userData.nom,
-        prenom: userData.prenom,
-        role: 'utilisateur'
-      };
+        password: userData.password
+      });
 
-      localStorage.setItem('token', 'mock-jwt-token-' + Date.now());
-      localStorage.setItem('user', JSON.stringify(newUser));
-      setUser(newUser);
+      if (response.user) {
+        // Après inscription, connecter automatiquement
+        return await login(userData.email, userData.password);
+      }
 
-      return { success: true, user: newUser };
+      return { success: true, message: response.message };
     } catch (error) {
+      console.error('Erreur register:', error);
       throw error;
     }
   };
@@ -101,9 +104,9 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
-  // Vérifier si l'utilisateur est manager
+  // Vérifier si l'utilisateur est manager (level >= 5)
   const isManager = () => {
-    return user?.role === 'manager';
+    return user?.role === 'manager' || user?.roleLevel >= 5;
   };
 
   // Vérifier si l'utilisateur est connecté

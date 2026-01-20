@@ -69,44 +69,137 @@ export const authAPI = {
   }
 };
 
-// ==================== SIGNALEMENTS API ====================
-export const signalementsAPI = {
-  // Récupérer tous les signalements
-  getAll: async () => {
-    return apiCall('/signalements');
+// ==================== ROUTES (Travaux routiers) API ====================
+export const routesAPI = {
+  // Récupérer toutes les routes
+  getAll: async (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    const endpoint = queryString ? `/routes?${queryString}` : '/routes';
+    return apiCall(endpoint);
   },
 
-  // Récupérer un signalement par ID
+  // Récupérer une route par ID
   getById: async (id) => {
-    return apiCall(`/signalements/${id}`);
+    return apiCall(`/routes/${id}`);
   },
 
-  // Créer un nouveau signalement
-  create: async (signalementData) => {
-    return apiCall('/signalements', {
+  // Créer une nouvelle route (Manager)
+  create: async (routeData) => {
+    return apiCall('/routes', {
       method: 'POST',
-      body: JSON.stringify(signalementData)
+      body: JSON.stringify(routeData)
     });
   },
 
-  // Mettre à jour un signalement
-  update: async (id, signalementData) => {
-    return apiCall(`/signalements/${id}`, {
+  // Mettre à jour une route (Manager)
+  update: async (id, routeData) => {
+    return apiCall(`/routes/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(signalementData)
+      body: JSON.stringify(routeData)
     });
   },
 
-  // Supprimer un signalement
+  // Mettre à jour l'avancement (Manager)
+  updateAvancement: async (id, avancement) => {
+    return apiCall(`/routes/${id}/avancement`, {
+      method: 'PATCH',
+      body: JSON.stringify({ avancement_pourcentage: avancement })
+    });
+  },
+
+  // Supprimer une route (Manager)
   delete: async (id) => {
-    return apiCall(`/signalements/${id}`, {
+    return apiCall(`/routes/${id}`, {
       method: 'DELETE'
     });
+  }
+};
+
+// Alias pour compatibilité avec l'ancien code
+export const signalementsAPI = routesAPI;
+
+// ==================== PROBLEMES API ====================
+export const problemesAPI = {
+  // Récupérer tous les types de problèmes
+  getAll: async () => {
+    return apiCall('/problemes');
   },
 
-  // Récapitulatif (stats)
-  getRecapitulatif: async () => {
-    return apiCall('/signalements/recapitulatif');
+  // Récupérer un problème par ID
+  getById: async (id) => {
+    return apiCall(`/problemes/${id}`);
+  },
+
+  // Créer un nouveau type de problème (Manager)
+  create: async (problemeData) => {
+    return apiCall('/problemes', {
+      method: 'POST',
+      body: JSON.stringify(problemeData)
+    });
+  },
+
+  // Mettre à jour un problème (Manager)
+  update: async (id, problemeData) => {
+    return apiCall(`/problemes/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(problemeData)
+    });
+  },
+
+  // Supprimer un problème (Manager)
+  delete: async (id) => {
+    return apiCall(`/problemes/${id}`, {
+      method: 'DELETE'
+    });
+  }
+};
+
+// ==================== ENTREPRISES API ====================
+export const entreprisesAPI = {
+  // Récupérer toutes les entreprises
+  getAll: async () => {
+    return apiCall('/entreprises');
+  },
+
+  // Récupérer une entreprise par ID
+  getById: async (id) => {
+    return apiCall(`/entreprises/${id}`);
+  },
+
+  // Créer une nouvelle entreprise (Manager)
+  create: async (entrepriseData) => {
+    return apiCall('/entreprises', {
+      method: 'POST',
+      body: JSON.stringify(entrepriseData)
+    });
+  },
+
+  // Mettre à jour une entreprise (Manager)
+  update: async (id, entrepriseData) => {
+    return apiCall(`/entreprises/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(entrepriseData)
+    });
+  },
+
+  // Supprimer une entreprise (Manager)
+  delete: async (id) => {
+    return apiCall(`/entreprises/${id}`, {
+      method: 'DELETE'
+    });
+  }
+};
+
+// ==================== STATS API ====================
+export const statsAPI = {
+  // Récupérer les statistiques globales
+  getAll: async () => {
+    return apiCall('/stats');
+  },
+
+  // Récupérer le dashboard complet
+  getDashboard: async () => {
+    return apiCall('/stats/dashboard');
   }
 };
 
@@ -139,17 +232,36 @@ export const usersAPI = {
 
 // ==================== SYNC API (Manager - Firebase) ====================
 export const syncAPI = {
-  // Synchroniser avec Firebase
-  syncToFirebase: async () => {
-    return apiCall('/sync/firebase', {
-      method: 'POST'
+  // Statut de synchronisation
+  getStatus: async () => {
+    return apiCall('/sync/status');
+  },
+
+  // Exporter les données locales
+  exportData: async () => {
+    return apiCall('/sync/export');
+  },
+
+  // Importer des données
+  importData: async (data) => {
+    return apiCall('/sync/import', {
+      method: 'POST',
+      body: JSON.stringify(data)
     });
   },
 
-  // Récupérer les signalements depuis Firebase
-  fetchFromFirebase: async () => {
-    return apiCall('/sync/firebase/fetch', {
-      method: 'GET'
+  // Marquer comme synchronisé
+  markSynced: async (ids) => {
+    return apiCall('/sync/mark-synced', {
+      method: 'POST',
+      body: JSON.stringify({ ids })
+    });
+  },
+
+  // Synchronisation complète
+  syncAll: async () => {
+    return apiCall('/sync/all', {
+      method: 'POST'
     });
   }
 };
