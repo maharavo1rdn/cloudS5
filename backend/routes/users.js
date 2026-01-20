@@ -74,6 +74,44 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 // Route pour mettre à jour un utilisateur
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   put:
+ *     summary: Modifier les informations d'un utilisateur
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               username:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *                 format: email
+ *     responses:
+ *       200:
+ *         description: Utilisateur modifié
+ *       400:
+ *         description: Username ou email déjà utilisé
+ *       403:
+ *         description: Accès non autorisé
+ *       404:
+ *         description: Utilisateur non trouvé
+ *       500:
+ *         description: Erreur serveur
+ */
 router.put('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;

@@ -123,12 +123,47 @@ router.post('/login', async (req, res) => {
     const result = await AuthService.login({ email, password });
     res.json({ message: 'Connexion réussie', ...result });
   } catch (error) {
-    if (error.message === 'Email ou mot de passe incorrect') {
+    if (error.message.includes('Email ou mot de passe incorrect') || 
+        error.message.includes('bloqué') || 
+        error.message.includes('tentatives')) {
       res.status(400).json({ message: error.message });
     } else {
       console.log('ici',error.message)
       res.status(500).json({ message: 'Erreur serveur', error: error.message });
     }
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/reset-attempts/{userId}:
+ *   post:
+ *     summary: Réinitialiser les tentatives de connexion d'un utilisateur
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID de l'utilisateur
+ *     responses:
+ *       200:
+ *         description: Tentatives réinitialisées
+ *       404:
+ *         description: Utilisateur non trouvé
+ *       500:
+ *         description: Erreur serveur
+ */
+router.post('/reset-attempts/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const result = await AuthService.resetLoginAttempts(parseInt(userId, 10));
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 });
 
