@@ -12,7 +12,7 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { Route, RoutePoint, Probleme, CreateRouteInput } from '../types/route.types';
+import { Route, RoutePoint, Probleme, CreateRouteInput, RouteStatut, PointStatut } from '../types/route.types';
 
 class RouteService {
   private readonly ROUTES_COLLECTION = 'routes';
@@ -29,7 +29,7 @@ class RouteService {
         nom: input.nom,
         description: input.description,
         probleme_id: input.probleme_id,
-        statut: 'NOUVEAU',
+        statut: (input.statut || 'NOUVEAU') as RouteStatut,
         surface_m2: input.surface_m2,
         date_detection: new Date(),
         avancement_pourcentage: 0,
@@ -39,8 +39,8 @@ class RouteService {
 
       await setDoc(routeRef, route);
 
-      // Créer le point géographique
-      const pointRef = doc(collection(db, this.POINTS_COLLECTION));
+      // Créer le point géographique dans la sous-collection 'points'
+      const pointRef = doc(collection(db, this.ROUTES_COLLECTION, routeRef.id, 'points'));
       const point: RoutePoint = {
         id: pointRef.id,
         route_id: route.id,
@@ -209,6 +209,29 @@ class RouteService {
     } catch (error) {
       console.error('Erreur lors de la mise à jour du statut:', error);
       throw error;
+    }
+  }
+
+  // Mettre à jour une route complète
+  async updateRoute(routeId: string, updates: Partial<Omit<Route, 'id' | 'created_at' | 'created_by' | 'points'>>): Promise<void> {
+    try {
+      const routeRef = doc(db, this.ROUTES_COLLECTION, routeId);
+      const updateData: any = {
+        ...updates,
+        updated_at: new Date(),
+      };
+      
+      // Nettoyer les valeurs undefined
+      Object.keys(updateData).forEach(key => {
+        if (updateData[key] === undefined) {
+          delete updateData[key];
+        }
+      });
+      
+      await updateDoc(routeRef, updateData);
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour de la route:', error);
+      throw new Error('Impossible de mettre à jour le signalement');
     }
   }
 

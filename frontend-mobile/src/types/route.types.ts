@@ -62,6 +62,7 @@ export interface CreateRouteInput {
   nom: string;
   description?: string;
   probleme_id: string;
+  statut?: RouteStatut;
   latitude: number;
   longitude: number;
   surface_m2?: number;

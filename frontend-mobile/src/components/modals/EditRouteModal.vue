@@ -1,8 +1,8 @@
 <template>
-  <ion-modal :is-open="isOpen" @didDismiss="closeModal" :breakpoints="[0, 0.6, 0.9, 1]" :initial-breakpoint="initialBreakpoint">
+  <ion-modal :is-open="isOpen" @didDismiss="closeModal" :breakpoints="[0, 0.6, 0.9, 1]" :initial-breakpoint="0.9">
     <ion-header>
       <ion-toolbar>
-        <ion-title>Nouveau signalement</ion-title>
+        <ion-title>Modifier le signalement</ion-title>
         <ion-buttons slot="end">
           <ion-button @click="closeModal" fill="clear">
             <ion-icon :icon="close" slot="icon-only"></ion-icon>
@@ -14,13 +14,13 @@
     <ion-content class="ion-padding modal-scroll" :scroll-y="true">
       <div class="modal-header">
         <div class="header-icon">
-          <ion-icon :icon="warning"></ion-icon>
+          <ion-icon :icon="pencil"></ion-icon>
         </div>
-        <h2 class="header-title">Signaler un problème</h2>
-        <p class="header-subtitle">Renseignez les détails du problème rencontré</p>
+        <h2 class="header-title">Modification du signalement</h2>
+        <p class="header-subtitle">Mettez à jour les informations du signalement</p>
       </div>
 
-      <form @submit.prevent="handleSubmit" class="report-form">
+      <form @submit.prevent="handleSubmit" class="edit-form">
         <!-- Titre -->
         <div class="input-wrapper">
           <label class="input-label">
@@ -49,13 +49,12 @@
           <div class="select-container" :class="{ focused: problemeFocused }">
             <ion-select
               v-model="form.probleme_id"
-              interface="popover"
+              interface="alert"
               :placeholder="getProblemePlaceholder()"
               :disabled="loading"
               @ionFocus="problemeFocused = true"
               @ionBlur="problemeFocused = false"
             >
-              <!-- Options des problèmes -->
               <ion-select-option
                 v-for="probleme in problemes"
                 :key="probleme.id"
@@ -76,19 +75,20 @@
           <div class="select-container" :class="{ focused: statutFocused }">
             <ion-select
               v-model="form.statut"
-              interface="popover"
+              interface="alert"
               :placeholder="getStatutPlaceholder()"
               :disabled="loading"
               @ionFocus="statutFocused = true"
               @ionBlur="statutFocused = false"
             >
-              <!-- Options des statuts -->
               <ion-select-option value="NOUVEAU">Nouveau</ion-select-option>
               <ion-select-option value="EN_COURS">En cours</ion-select-option>
               <ion-select-option value="TERMINE">Terminé</ion-select-option>
-              <ion-select-option value="ANNULE">Annulé</ion-select-option>
-              <ion-select-option value="EN_ATTENTE">En attente</ion-select-option>
             </ion-select>
+          </div>
+          <div class="status-hint">
+            <ion-icon :icon="informationCircle"></ion-icon>
+            <span>Modifiez le statut pour suivre l'avancement de la réparation</span>
           </div>
         </div>
 
@@ -129,21 +129,7 @@
           </div>
         </div>
 
-        <!-- Localisation -->
-        <div class="location-info">
-          <div class="location-header">
-            <ion-icon :icon="locationOutline" class="location-icon"></ion-icon>
-            <div class="location-details">
-              <div class="location-label">Position du signalement</div>
-              <div class="location-coords" v-if="currentLocation">
-                {{ currentLocation.lat.toFixed(6) }}, {{ currentLocation.lng.toFixed(6) }}
-              </div>
-            </div>
-          </div>
-          <div class="location-hint">
-            Les coordonnées ont été capturées automatiquement
-          </div>
-        </div>
+
 
         <!-- Error Message -->
         <div v-if="error" class="alert alert-error">
@@ -171,7 +157,7 @@
           class="submit-button"
         >
           <ion-spinner v-if="loading" name="crescent"></ion-spinner>
-          <span v-else>Créer le signalement</span>
+          <span v-else>Enregistrer les modifications</span>
         </ion-button>
       </form>
     </ion-content>
@@ -179,7 +165,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import {
   IonModal,
   IonHeader,
@@ -201,19 +187,18 @@ import {
   alert,
   reader,
   resizeOutline,
-  locationOutline,
   alertCircle,
   checkmarkCircle,
-  warning,
+  pencil,
   flagOutline,
+  informationCircle,
 } from 'ionicons/icons';
 import routeService from '../../services/routeService';
-import authService from '../../services/authService';
-import { Probleme, RouteStatut } from '../../types/route.types';
+import { Probleme, RouteStatut, Route } from '../../types/route.types';
 
 interface Props {
   isOpen: boolean;
-  currentLocation?: { lat: number; lng: number } | null;
+  route: Route | null;
 }
 
 const props = defineProps<Props>();
@@ -243,36 +228,17 @@ const statutFocused = ref(false);
 const descriptionFocused = ref(false);
 const surfaceFocused = ref(false);
 
-// Responsive initial breakpoint for the modal (full screen on small devices)
-const initialBreakpoint = ref<number>(0.9);
-const updateBreakpoint = () => {
-  initialBreakpoint.value = window.innerWidth <= 640 ? 1 : 0.9;
-};
-
-onMounted(async () => {
-  await loadProblemes();
-  updateBreakpoint();
-  window.addEventListener('resize', updateBreakpoint);
-});
-
-onUnmounted(() => {
-  window.removeEventListener('resize', updateBreakpoint);
-});
-
-// Définir les statuts disponibles
+// Définir les statuts avec leurs labels
 const statutsDisponibles = [
   { value: 'NOUVEAU', label: 'Nouveau' },
   { value: 'EN_COURS', label: 'En cours' },
   { value: 'TERMINE', label: 'Terminé' },
-  { value: 'ANNULE', label: 'Annulé' },
-  { value: 'EN_ATTENTE', label: 'En attente' },
 ];
 
 const isFormValid = computed(() => {
   return (
     form.value.nom.trim() !== '' &&
-    form.value.probleme_id !== '' &&
-    props.currentLocation !== null
+    form.value.probleme_id !== ''
   );
 });
 
@@ -294,6 +260,28 @@ const getStatutPlaceholder = () => {
   return statut ? statut.label : 'Sélectionnez un statut';
 };
 
+// Charger les données de la route dans le formulaire quand le modal s'ouvre
+watch(() => props.route, (newRoute) => {
+  if (newRoute) {
+    form.value = {
+      nom: newRoute.nom || '',
+      description: newRoute.description || '',
+      probleme_id: newRoute.probleme_id || '',
+      statut: newRoute.statut || 'NOUVEAU',
+      surface_m2: newRoute.surface_m2,
+    };
+  }
+}, { immediate: true });
+
+// Watch pour réagir aux changements des valeurs
+watch(() => form.value.probleme_id, () => {
+  // Force la mise à jour du placeholder
+});
+
+watch(() => form.value.statut, () => {
+  // Force la mise à jour du placeholder
+});
+
 onMounted(async () => {
   await loadProblemes();
 });
@@ -302,7 +290,6 @@ const loadProblemes = async () => {
   try {
     problemes.value = await routeService.getProblemes();
     
-    // Si aucun problème n'existe, initialiser les problèmes par défaut
     if (problemes.value.length === 0) {
       await routeService.initializeDefaultProblemes();
       problemes.value = await routeService.getProblemes();
@@ -313,55 +300,37 @@ const loadProblemes = async () => {
 };
 
 const handleSubmit = async () => {
-  if (!isFormValid.value || !props.currentLocation) return;
+  if (!isFormValid.value || !props.route) return;
 
   loading.value = true;
   error.value = '';
   success.value = '';
 
   try {
-    const userData = await authService.getUserData();
-    if (!userData || !userData.localId) {
-      throw new Error('Utilisateur non authentifié');
-    }
+    await routeService.updateRoute(props.route.id, {
+      nom: form.value.nom,
+      description: form.value.description,
+      probleme_id: form.value.probleme_id,
+      statut: form.value.statut,
+      surface_m2: form.value.surface_m2,
+    });
 
-    await routeService.createRoute(
-      {
-        nom: form.value.nom,
-        description: form.value.description,
-        probleme_id: form.value.probleme_id,
-        statut: form.value.statut,
-        latitude: props.currentLocation.lat,
-        longitude: props.currentLocation.lng,
-        surface_m2: form.value.surface_m2,
-      },
-      userData.localId
-    );
+    success.value = 'Signalement modifié avec succès';
 
-    success.value = 'Signalement créé avec succès';
-
-    // Réinitialiser le formulaire après 1.5 secondes
     setTimeout(() => {
       emit('success');
       closeModal();
     }, 1500);
   } catch (err) {
-    console.error('Erreur lors de la création du signalement:', err);
+    console.error('Erreur lors de la modification du signalement:', err);
     error.value =
-      err instanceof Error ? err.message : 'Erreur lors de la création du signalement.';
+      err instanceof Error ? err.message : 'Erreur lors de la modification du signalement.';
   } finally {
     loading.value = false;
   }
 };
 
 const closeModal = () => {
-  form.value = {
-    nom: '',
-    description: '',
-    probleme_id: '',
-    statut: 'NOUVEAU',
-    surface_m2: undefined,
-  };
   error.value = '';
   success.value = '';
   nomFocused.value = false;
@@ -370,6 +339,17 @@ const closeModal = () => {
   descriptionFocused.value = false;
   surfaceFocused.value = false;
   emit('close');
+};
+
+const formatDate = (date: Date | undefined): string => {
+  if (!date || !(date instanceof Date)) return 'N/A';
+  return date.toLocaleDateString('fr-FR', { 
+    day: 'numeric', 
+    month: 'long', 
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 };
 </script>
 
@@ -394,8 +374,8 @@ ion-content {
 
 .modal-header {
   text-align: center;
-  margin-bottom: 20px;
-  padding: 16px 0;
+  margin-bottom: 32px;
+  padding: 24px 0;
 }
 
 .header-icon {
@@ -430,14 +410,15 @@ ion-content {
   font-weight: 500;
 }
 
-.report-form {
-  max-width: 360px; /* Narrower for mobile screens */
+.edit-form {
+  max-width: 640px; /* Wider for mobile/full-width devices */
+  width: 100%;
   margin: 0 auto;
-  padding: 0 8px;
+  padding: 0 12px;
 }
 
 .input-wrapper {
-  margin-bottom: 10px; /* Reduced spacing for compact mobile layout */
+  margin-bottom: 12px; /* Reduced spacing for tighter mobile layout */
 }
 
 .input-label {
@@ -486,12 +467,24 @@ ion-content {
   font-weight: 500;
 }
 
+/* STYLES POUR LES SELECTS - IMPORTANT */
 .select-container ion-select::part(placeholder) {
-  color: #94a3b8;
+  color: #94a3b8 !important;
+  opacity: 1 !important;
 }
 
 .select-container ion-select::part(text) {
-  color: #0f172a;
+  color: #0f172a !important;
+}
+
+/* Quand une valeur est sélectionnée, le texte doit être noir */
+.select-container ion-select:not([value=""])::part(text) {
+  color: #0f172a !important;
+}
+
+/* Quand le select est vide, montrer le placeholder en gris */
+.select-container ion-select[value=""]::part(text) {
+  color: #94a3b8 !important;
 }
 
 .textarea-container ion-textarea {
@@ -500,7 +493,31 @@ ion-content {
   min-height: 100px;
 }
 
-.location-info {
+.status-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 12px;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border-radius: 12px;
+  border-left: 3px solid #3b82f6;
+}
+
+.status-hint ion-icon {
+  font-size: 18px;
+  color: #3b82f6;
+  flex-shrink: 0;
+}
+
+.status-hint span {
+  font-size: 12px;
+  color: #1e40af;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.info-box {
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
   border: 2px solid #e2e8f0;
   border-radius: 16px;
@@ -508,52 +525,46 @@ ion-content {
   margin-bottom: 24px;
 }
 
-.location-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
-.location-icon {
-  width: 36px;
-  height: 36px;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-  border-radius: 10px;
+.info-header {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.info-header ion-icon {
   font-size: 20px;
-  color: white;
-  flex-shrink: 0;
+  color: #64748b;
 }
 
-.location-details {
-  flex: 1;
-}
-
-.location-label {
-  font-size: 12px;
+.info-header span {
+  font-size: 13px;
   font-weight: 700;
   color: #0f172a;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-bottom: 4px;
 }
 
-.location-coords {
-  font-size: 14px;
-  font-weight: 600;
-  color: #334155;
-  font-family: 'Courier New', monospace;
-  letter-spacing: -0.01em;
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
 }
 
-.location-hint {
-  font-size: 12px;
+.info-label {
+  font-size: 13px;
   color: #64748b;
-  font-style: italic;
-  padding-left: 48px;
+  font-weight: 600;
+}
+
+.info-value {
+  font-size: 13px;
+  color: #0f172a;
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
 }
 
 .alert {
@@ -695,9 +706,9 @@ ion-content {
   padding-bottom: 28px; /* space for floating button */
 }
 
-/* Keep forms narrower for a tighter, more professional layout */
+/* Wider modal for larger screens but still compact */
 @media (min-width: 640px) {
-  .report-form { max-width: 520px; }
+  .edit-form { max-width: 520px; }
 }
 
 </style>

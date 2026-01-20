@@ -1,7 +1,8 @@
 <template>
   <ion-page>
-    <ion-header>
-      <ion-toolbar>
+    <ion-header class="ion-no-border">
+      <!-- Toolbar Principale -->
+      <ion-toolbar color="primary">
         <ion-title>Gestion des Routes</ion-title>
         <ion-buttons slot="end">
           <ion-button v-if="isManager" @click="openRegisterModal" fill="clear">
@@ -12,11 +13,48 @@
           </ion-button>
         </ion-buttons>
       </ion-toolbar>
+
+      <!-- Toolbar Secondaire (Filtres) - Intégrée dans le header pour la visibilité -->
+      <ion-toolbar class="filter-toolbar">
+        <div class="toolbar-actions-wrapper">
+          <div class="view-toggle">
+            <ion-button 
+              :fill="viewMode === 'map' ? 'solid' : 'outline'"
+              size="small"
+              @click="viewMode = 'map'"
+              class="toggle-btn"
+            >
+              <ion-icon :icon="mapIcon" slot="start"></ion-icon>
+              Carte
+            </ion-button>
+            <ion-button 
+              :fill="viewMode === 'list' ? 'solid' : 'outline'"
+              size="small"
+              @click="viewMode = 'list'"
+              class="toggle-btn"
+            >
+              <ion-icon :icon="list" slot="start"></ion-icon>
+              Liste
+            </ion-button>
+          </div>
+          <ion-button 
+            :fill="showOnlyMyReports ? 'solid' : 'outline'"
+            size="small"
+            @click="toggleMyReports"
+            class="filter-btn"
+            :aria-pressed="showOnlyMyReports"
+          >
+            <ion-icon :icon="person" slot="start"></ion-icon>
+            {{ showOnlyMyReports ? 'Tous les signalements' : 'Mes signalements' }}
+          </ion-button>
+        </div>
+      </ion-toolbar>
     </ion-header>
 
     <ion-content :fullscreen="true">
       <ConnectivityBanner />
       
+      <!-- Barre de statut flottante sur la carte -->
       <div class="status-bar" :class="`status-${geolocationStatus}`">
         <div class="status-content">
           <div class="status-icon">
@@ -47,7 +85,82 @@
         </div>
       </div>
       
-      <div id="map" ref="mapContainer" class="map-container"></div>
+      <div v-show="viewMode === 'map'" id="map" ref="mapContainer" class="map-container"></div>
+      
+      <!-- Vue Liste -->
+      <div v-show="viewMode === 'list'" class="list-container">
+        <div v-if="filteredRoutes.length === 0" class="empty-state">
+          <div class="empty-icon">
+            <ion-icon :icon="documentOutline"></ion-icon>
+          </div>
+          <h3 class="empty-title">Aucun signalement</h3>
+          <p class="empty-text">
+            {{ showOnlyMyReports ? 'Vous n\'avez créé aucun signalement pour le moment' : 'Aucun signalement disponible' }}
+          </p>
+        </div>
+        
+        <div v-else class="routes-list">
+          <div 
+            v-for="route in filteredRoutes" 
+            :key="route.id"
+            class="route-card"
+            @click="selectRoute(route)"
+          >
+            <div class="route-card-header" :style="{ background: getStatusConfig(route.statut).gradient }">
+              <div class="route-card-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
+                  <path :d="getIconPathForStatus(route.statut)"/>
+                </svg>
+              </div>
+              <div class="route-card-title-section">
+                <h3 class="route-card-title">{{ route.probleme?.nom || 'Signalement' }}</h3>
+                <span class="route-card-date">{{ formatDate(route.date_detection) }}</span>
+              </div>
+            </div>
+            
+            <div class="route-card-body">
+              <div class="route-card-field">
+                <span class="field-label">Titre</span>
+                <span class="field-value">{{ route.nom }}</span>
+              </div>
+              
+              <div v-if="route.description" class="route-card-field">
+                <span class="field-label">Description</span>
+                <span class="field-value">{{ route.description }}</span>
+              </div>
+              
+              <div class="route-card-field">
+                <span class="field-label">Statut</span>
+                <span class="status-badge-inline" :style="{ background: getStatusConfig(route.statut).gradient }">
+                  {{ getStatusConfig(route.statut).label }}
+                </span>
+              </div>
+              
+              <div v-if="route.surface_m2" class="route-card-field">
+                <span class="field-label">Surface</span>
+                <span class="field-value">{{ route.surface_m2 }} m²</span>
+              </div>
+              
+              <div v-if="route.points && route.points.length > 0" class="route-card-field">
+                <span class="field-label">Position</span>
+                <span class="field-value coords">{{ route.points[0].latitude.toFixed(6) }}, {{ route.points[0].longitude.toFixed(6) }}</span>
+              </div>
+            </div>
+            
+            <div v-if="isManager" class="route-card-footer">
+              <ion-button 
+                size="small" 
+                fill="outline"
+                @click.stop="openEditModal(route)"
+                class="edit-btn"
+              >
+                <ion-icon :icon="pencil" slot="start"></ion-icon>
+                Modifier
+              </ion-button>
+            </div>
+          </div>
+        </div>
+      </div>
       
       <div v-if="isLoadingRoutes" class="loading-overlay">
         <div class="loading-card">
@@ -98,15 +211,23 @@
     
     <ReportIssueModal 
       :is-open="showReportModal" 
-      :current-location="currentLocation"
+      :current-location="clickedLocation || currentLocation"
       @close="closeReportModal"
       @success="onReportSuccess"
+    />
+    
+    <EditRouteModal 
+      v-if="isManager"
+      :is-open="showEditModal" 
+      :route="selectedRoute"
+      @close="closeEditModal"
+      @success="onEditSuccess"
     />
   </ion-page>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   IonPage,
@@ -121,13 +242,14 @@ import {
   IonFabButton,
   IonSpinner,
 } from '@ionic/vue';
-import { logOut, add, personAdd, locate, warning, alertCircle, construct, checkmarkCircle } from 'ionicons/icons';
+import { logOut, add, personAdd, locate, warning, alertCircle, construct, checkmarkCircle, map as mapIcon, list, person, documentOutline, pencil } from 'ionicons/icons';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import authService from '../services/authService';
 import routeService from '../services/routeService';
 import RegisterUserModal from '../components/modals/RegisterUserModal.vue';
 import ReportIssueModal from '../components/modals/ReportIssueModal.vue';
+import EditRouteModal from '../components/modals/EditRouteModal.vue';
 import ConnectivityBanner from '../components/ConnectivityBanner.vue';
 import { Route } from '../types/route.types';
 
@@ -136,19 +258,33 @@ const mapContainer = ref<HTMLElement | null>(null);
 const isManager = ref(false);
 const showRegisterModal = ref(false);
 const showReportModal = ref(false);
+const showEditModal = ref(false);
+const selectedRoute = ref<Route | null>(null);
 const currentLocation = ref<{ lat: number; lng: number } | null>(null);
+const clickedLocation = ref<{ lat: number; lng: number } | null>(null);
 const routes = ref<Route[]>([]);
 const isLoadingRoutes = ref(false);
+const viewMode = ref<'map' | 'list'>('map');
+const showOnlyMyReports = ref(false);
+const currentUserId = ref<string>('');
 let map: L.Map | null = null;
 let userMarker: L.Marker | null = null;
 let routeMarkers: L.Marker[] = [];
 const geolocationStatus = ref<'loading' | 'success' | 'error' | 'default'>('loading');
 
+const filteredRoutes = computed(() => {
+  if (!showOnlyMyReports.value) {
+    return routes.value;
+  }
+  return routes.value.filter(r => r.created_by === currentUserId.value);
+});
+
 const routesByStatus = computed(() => {
+  const routesToCount = filteredRoutes.value;
   return {
-    NOUVEAU: routes.value.filter(r => r.statut === 'NOUVEAU').length,
-    EN_COURS: routes.value.filter(r => r.statut === 'EN_COURS').length,
-    TERMINE: routes.value.filter(r => r.statut === 'TERMINE').length,
+    NOUVEAU: routesToCount.filter(r => r.statut === 'NOUVEAU').length,
+    EN_COURS: routesToCount.filter(r => r.statut === 'EN_COURS').length,
+    TERMINE: routesToCount.filter(r => r.statut === 'TERMINE').length,
   };
 });
 
@@ -160,6 +296,10 @@ onMounted(async () => {
   }
 
   isManager.value = await authService.isManager();
+  const userData = await authService.getUserData();
+  if (userData && userData.localId) {
+    currentUserId.value = userData.localId;
+  }
   initMap();
   await loadRoutes();
 });
@@ -180,6 +320,16 @@ const initMap = () => {
     attribution: '© OpenStreetMap',
     maxZoom: 19,
   }).addTo(map);
+
+  // Capture des clics sur la carte
+  map.on('click', (e: L.LeafletMouseEvent) => {
+    clickedLocation.value = {
+      lat: e.latlng.lat,
+      lng: e.latlng.lng
+    };
+    // Ouvrir automatiquement le modal de signalement
+    openReportModal();
+  });
 
   geolocationStatus.value = 'loading';
   
@@ -232,7 +382,9 @@ const initMap = () => {
 };
 
 const openReportModal = () => {
-  if (!currentLocation.value) {
+  // Si on a un clic sur la carte, utiliser ces coordonnées
+  // Sinon utiliser la position actuelle de l'utilisateur
+  if (!clickedLocation.value && !currentLocation.value) {
     currentLocation.value = { lat: -18.8792, lng: 47.5079 };
   }
   showReportModal.value = true;
@@ -240,6 +392,8 @@ const openReportModal = () => {
 
 const closeReportModal = () => {
   showReportModal.value = false;
+  // Réinitialiser les coordonnées du clic
+  clickedLocation.value = null;
 };
 
 const onReportSuccess = async () => {
@@ -266,7 +420,8 @@ const displayRouteMarkers = () => {
   routeMarkers.forEach(marker => marker.remove());
   routeMarkers = [];
   
-  routes.value.forEach(route => {
+  // Use filteredRoutes so markers reflect current filter (mes signalements)
+  filteredRoutes.value.forEach(route => {
     if (!map || !route.points || route.points.length === 0) return;
     
     const firstPoint = route.points[0];
@@ -354,6 +509,17 @@ const displayRouteMarkers = () => {
             </div>
           </div>
         </div>
+        ${isManager.value ? `
+          <div class="popup-footer">
+            <button class="popup-edit-btn" data-route-id="${route.id}">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+              Modifier
+            </button>
+          </div>
+        ` : ''}
       </div>
     `;
     
@@ -361,9 +527,25 @@ const displayRouteMarkers = () => {
       maxWidth: 320,
       className: 'custom-popup'
     });
+    
+    // Ajouter un event listener pour le bouton d'édition
+    marker.on('popupopen', () => {
+      const editBtn = document.querySelector(`[data-route-id="${route.id}"]`);
+      if (editBtn) {
+        editBtn.addEventListener('click', () => {
+          openEditModal(route);
+        });
+      }
+    });
+    
     routeMarkers.push(marker);
   });
 };
+
+// Watch filteredRoutes so map markers update when the filter toggles
+watch(filteredRoutes, (newVal, oldVal) => {
+  displayRouteMarkers();
+});
 
 const getIconPath = (iconName: string): string => {
   const icons: Record<string, string> = {
@@ -382,6 +564,81 @@ const closeRegisterModal = () => {
   showRegisterModal.value = false;
 };
 
+const toggleMyReports = () => {
+  showOnlyMyReports.value = !showOnlyMyReports.value;
+};
+
+const selectRoute = (route: Route) => {
+  if (viewMode.value === 'list' && route.points && route.points.length > 0) {
+    viewMode.value = 'map';
+    setTimeout(() => {
+      if (map && route.points && route.points.length > 0) {
+        map.setView([route.points[0].latitude, route.points[0].longitude], 17);
+        routeMarkers.forEach(marker => {
+          const markerLatLng = marker.getLatLng();
+          if (route.points && route.points.length > 0 && markerLatLng.lat === route.points[0].latitude && markerLatLng.lng === route.points[0].longitude) {
+            marker.openPopup();
+          }
+        });
+      }
+    }, 100);
+  }
+};
+
+const openEditModal = (route: Route) => {
+  selectedRoute.value = route;
+  showEditModal.value = true;
+};
+
+const closeEditModal = () => {
+  showEditModal.value = false;
+  selectedRoute.value = null;
+};
+
+const onEditSuccess = async () => {
+  showEditModal.value = false;
+  selectedRoute.value = null;
+  await loadRoutes();
+};
+
+const formatDate = (date: Date | undefined): string => {
+  if (!date || !(date instanceof Date)) return 'N/A';
+  return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
+const getStatusConfig = (statut: string) => {
+  const configs: any = {
+    NOUVEAU: { 
+      color: '#ef4444', 
+      icon: 'alert-circle',
+      label: 'NOUVEAU',
+      gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+    },
+    EN_COURS: { 
+      color: '#f59e0b', 
+      icon: 'construct',
+      label: 'EN COURS',
+      gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+    },
+    TERMINE: { 
+      color: '#10b981', 
+      icon: 'checkmark-circle',
+      label: 'TERMINÉ',
+      gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+    }
+  };
+  return configs[statut] || configs.NOUVEAU;
+};
+
+const getIconPathForStatus = (statut: string): string => {
+  const paths: Record<string, string> = {
+    NOUVEAU: 'M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10zm0-6v-4m0-4h.01',
+    EN_COURS: 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z',
+    TERMINE: 'M22 11.08V12a10 10 0 1 1-5.93-9.14m0 0L22 4 12 14.01 9 11.01'
+  };
+  return paths[statut] || paths.NOUVEAU;
+};
+
 const handleLogout = async () => {
   await authService.logout();
   router.replace('/');
@@ -394,12 +651,17 @@ const handleLogout = async () => {
   height: 100%;
 }
 
+/* Header Styles */
 ion-toolbar {
   --background: #0f172a;
   --color: #ffffff;
   --border-width: 0;
-  --padding-top: 8px;
-  --padding-bottom: 8px;
+}
+
+.filter-toolbar {
+  --background: #0f172a;
+  --min-height: 50px;
+  padding-bottom: 8px;
 }
 
 ion-title {
@@ -408,6 +670,64 @@ ion-title {
   letter-spacing: -0.02em;
 }
 
+/* Toolbar Actions Wrapper - intégré au header */
+.toolbar-actions-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  width: 100%;
+}
+
+.view-toggle {
+  display: flex;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 4px;
+  border-radius: 12px;
+}
+
+.toggle-btn,
+.filter-btn {
+  --border-radius: 8px;
+  --padding-start: 12px;
+  --padding-end: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  height: 32px;
+  margin: 0;
+  text-transform: none;
+  letter-spacing: -0.01em;
+}
+
+.toggle-btn[fill="solid"] {
+  --background: white;
+  --color: #0f172a;
+}
+
+.toggle-btn[fill="outline"] {
+  --border-color: transparent;
+  --color: #94a3b8;
+}
+
+/* Bouton Filtre (Mes signalements) */
+.filter-btn {
+  background: transparent;
+}
+
+.filter-btn[fill="solid"] {
+  --background: white;
+  --color: #0f172a;
+  --box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.filter-btn[fill="outline"] {
+  --border-color: rgba(255, 255, 255, 0.3);
+  --color: white;
+}
+
+/* FAB */
 ion-fab-button {
   --background: #0f172a;
   --color: #ffffff;
@@ -418,9 +738,10 @@ ion-fab-button:hover {
   --background: #1e293b;
 }
 
+/* Status Bar - Ajusté */
 .status-bar {
   position: absolute;
-  top: 16px;
+  top: 16px; /* Remonté car il n'est plus gêné par les filtres */
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000;
@@ -622,6 +943,182 @@ ion-fab-button:hover {
   color: #64748b;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.list-container {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  background: #f8fafc;
+  padding: 16px; /* Réduit car le header prend maintenant l'espace naturellement */
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 32px;
+  text-align: center;
+}
+
+.empty-icon {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.empty-icon ion-icon {
+  font-size: 40px;
+  color: #94a3b8;
+}
+
+.empty-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 8px 0;
+  letter-spacing: -0.02em;
+}
+
+.empty-text {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+  max-width: 320px;
+  line-height: 1.5;
+}
+
+.routes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.route-card {
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.route-card:hover {
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+
+.route-card-header {
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: white;
+}
+
+.route-card-icon {
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.route-card-title-section {
+  flex: 1;
+  min-width: 0;
+}
+
+.route-card-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.route-card-date {
+  font-size: 12px;
+  opacity: 0.9;
+  font-weight: 500;
+}
+
+.route-card-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.route-card-field {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.field-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+.field-value {
+  font-size: 14px;
+  font-weight: 500;
+  color: #0f172a;
+  text-align: right;
+  word-break: break-word;
+}
+
+.field-value.coords {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.status-badge-inline {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.route-card-footer {
+  padding: 12px 16px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.edit-btn {
+  --border-radius: 8px;
+  --padding-start: 12px;
+  --padding-end: 12px;
+  --border-color: #0f172a;
+  --color: #0f172a;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: -0.01em;
 }
 
 :deep(.user-location-marker) {
@@ -841,6 +1338,38 @@ ion-fab-button:hover {
   font-size: 12px;
   color: #64748b;
   font-family: 'Courier New', monospace;
+}
+
+:deep(.popup-footer) {
+  padding: 12px 16px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+:deep(.popup-edit-btn) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: white;
+  border: 2px solid #0f172a;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+:deep(.popup-edit-btn:hover) {
+  background: #0f172a;
+  color: white;
+}
+
+:deep(.popup-edit-btn svg) {
+  width: 16px;
+  height: 16px;
 }
 
 @media (max-width: 640px) {
