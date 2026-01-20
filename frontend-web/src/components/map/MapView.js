@@ -1,13 +1,89 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import Map, { Marker, NavigationControl, ScaleControl, Popup } from 'react-map-gl';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { MapPin, AlertCircle, Clock, CheckCircle } from 'lucide-react';
-import { useSignalements } from '../../context/SignalementContext';
 import './MapView.css';
 
+// Données statiques pour test
+const SIGNALEMENTS_STATIQUES = [
+  {
+    id: 1,
+    latitude: -18.8792,
+    longitude: 47.5079,
+    date: '2026-01-15',
+    status: 'nouveau',
+    surface: 150,
+    budget: 5000000,
+    entreprise: 'COLAS Madagascar',
+    description: 'Nid de poule important',
+    adresse: 'Avenue de l\'Indépendance'
+  },
+  {
+    id: 2,
+    latitude: -18.8850,
+    longitude: 47.5150,
+    date: '2026-01-10',
+    status: 'en_cours',
+    surface: 300,
+    budget: 12000000,
+    entreprise: 'SOGEA SATOM',
+    description: 'Route effondrée',
+    adresse: 'Route d\'Ivato'
+  },
+  {
+    id: 3,
+    latitude: -18.8720,
+    longitude: 47.5200,
+    date: '2026-01-05',
+    status: 'termine',
+    surface: 80,
+    budget: 3500000,
+    entreprise: 'ENTREPRISE RAVINALA',
+    description: 'Fissures multiples',
+    adresse: 'Boulevard de l\'Europe'
+  },
+  {
+    id: 4,
+    latitude: -18.8900,
+    longitude: 47.5000,
+    date: '2026-01-18',
+    status: 'nouveau',
+    surface: 200,
+    budget: 8000000,
+    entreprise: null,
+    description: 'Affaissement de chaussée',
+    adresse: 'Route Digue'
+  },
+  {
+    id: 5,
+    latitude: -18.8750,
+    longitude: 47.5250,
+    date: '2025-12-20',
+    status: 'en_cours',
+    surface: 450,
+    budget: 25000000,
+    entreprise: 'COLAS Madagascar',
+    description: 'Reconstruction complète',
+    adresse: 'Avenue du 26 Juin'
+  },
+  {
+    id: 6,
+    latitude: -18.8680,
+    longitude: 47.5100,
+    date: '2025-12-15',
+    status: 'termine',
+    surface: 120,
+    budget: 4500000,
+    entreprise: 'SOGEA SATOM',
+    description: 'Réparation trottoir',
+    adresse: 'Rue Rainitovo'
+  }
+];
+
 const MapView = ({ onMarkerClick }) => {
-  const { signalements } = useSignalements();
+  // Utiliser données statiques directement
+  const signalements = SIGNALEMENTS_STATIQUES;
   const [viewState, setViewState] = useState({
     latitude: -18.8792,
     longitude: 47.5079,
