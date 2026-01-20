@@ -4,6 +4,9 @@
       <ion-toolbar>
         <ion-title>Carte des routes</ion-title>
         <ion-buttons slot="end">
+          <ion-button v-if="isManager" @click="openRegisterModal">
+            <ion-icon :icon="personAdd"></ion-icon>
+          </ion-button>
           <ion-button @click="handleLogout">
             <ion-icon :icon="logOut"></ion-icon>
           </ion-button>
@@ -12,6 +15,7 @@
     </ion-header>
 
     <ion-content :fullscreen="true">
+      <ConnectivityBanner />
       <div id="map" ref="mapContainer" class="map-container"></div>
       
       <!-- Floating Action Button pour ajouter un signalement -->
@@ -21,6 +25,9 @@
         </ion-fab-button>
       </ion-fab>
     </ion-content>
+
+    <!-- Modal d'inscription (manager seulement) -->
+    <RegisterUserModal :is-open="showRegisterModal" @close="closeRegisterModal" />
   </ion-page>
 </template>
 
@@ -39,13 +46,17 @@ import {
   IonFab,
   IonFabButton,
 } from '@ionic/vue';
-import { logOut, add } from 'ionicons/icons';
+import { logOut, add, personAdd } from 'ionicons/icons';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import authService from '../services/authService';
+import RegisterUserModal from '../components/modals/RegisterUserModal.vue';
+import ConnectivityBanner from '../components/ConnectivityBanner.vue';
 
 const router = useRouter();
 const mapContainer = ref<HTMLElement | null>(null);
+const isManager = ref(false);
+const showRegisterModal = ref(false);
 let map: L.Map | null = null;
 let userMarker: L.Marker | null = null;
 
@@ -56,6 +67,9 @@ onMounted(async () => {
     router.replace('/');
     return;
   }
+
+  // Vérifier si l'utilisateur est manager
+  isManager.value = await authService.isManager();
 
   // Initialiser la carte
   initMap();
@@ -115,6 +129,14 @@ const initMap = () => {
 const openReportModal = () => {
   // TODO: Ouvrir un modal pour signaler un problème routier
   console.log('Ouvrir le formulaire de signalement');
+};
+
+const openRegisterModal = () => {
+  showRegisterModal.value = true;
+};
+
+const closeRegisterModal = () => {
+  showRegisterModal.value = false;
 };
 
 const handleLogout = async () => {

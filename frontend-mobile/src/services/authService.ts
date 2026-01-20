@@ -1,7 +1,9 @@
 import { Preferences } from '@capacitor/preferences';
+import userService, { UserProfile } from './userService';
 
 const TOKEN_KEY = 'auth_token';
 const USER_KEY = 'user_data';
+const ROLE_KEY = 'user_role';
 
 interface FirebaseAuthResponse {
   idToken: string;
@@ -42,11 +44,16 @@ class AuthService {
         throw new Error(this.getErrorMessage(error.error.message));
       }
 
+      // Récupérer ou créer le profil utilisateur dans Firestore
+      const userProfile = await userService.getOrCreateUserProfile(data.localId, data.email);
+
+      // Stocker le token et les données utilisateur avec le rôle
       await this.setToken(data.idToken);
       await this.setUserData({
         email: data.email,
         localId: data.localId,
       });
+      await this.setUserRole(userProfile.role);
 
       return data;
     } catch (error) {
@@ -76,12 +83,16 @@ class AuthService {
         throw new Error(this.getErrorMessage(error.error.message));
       }
 
+      // Créer le profil utilisateur dans Firestore avec rôle 'user'
+      const userProfile = await userService.createUserProfile(data.localId, data.email, 'user');
+
       // Stocker le token et les données utilisateur
       await this.setToken(data.idToken);
       await this.setUserData({
         email: data.email,
         localId: data.localId,
       });
+      await this.setUserRole(userProfile.role);
 
       return data;
     } catch (error) {
@@ -93,6 +104,7 @@ class AuthService {
   async logout(): Promise<void> {
     await Preferences.remove({ key: TOKEN_KEY });
     await Preferences.remove({ key: USER_KEY });
+    await Preferences.remove({ key: ROLE_KEY });
   }
 
   async getToken(): Promise<string | null> {
@@ -110,12 +122,35 @@ class AuthService {
     return value ? JSON.parse(value) : null;
   }
 
+  async getUserRole(): Promise<'user' | 'manager' | null> {
+    const { value } = await Preferences.get({ key: ROLE_KEY });
+    return value as 'user' | 'manager' | null;
+  }
+
+  async isManager(): Promise<boolean> {
+    const role = await this.getUserRole();
+    return role === 'manager';
+  }
+
+  // Vérifier la connectivité Firestore
+  async checkFirestoreConnectivity(): Promise<boolean> {
+    try {
+      return await userService.checkConnectivity();
+    } catch (error) {
+      return false;
+    }
+  }
+
   private async setToken(token: string): Promise<void> {
     await Preferences.set({ key: TOKEN_KEY, value: token });
   }
 
   private async setUserData(userData: any): Promise<void> {
     await Preferences.set({ key: USER_KEY, value: JSON.stringify(userData) });
+  }
+
+  private async setUserRole(role: 'user' | 'manager'): Promise<void> {
+    await Preferences.set({ key: ROLE_KEY, value: role });
   }
 
   private getErrorMessage(firebaseError: string): string {
