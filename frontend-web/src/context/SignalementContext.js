@@ -28,9 +28,23 @@ export const SignalementProvider = ({ children }) => {
     setError(null);
     try {
       await simulateDelay(300);
-      // Charger depuis localStorage si disponible, sinon mock
+      // Charger depuis localStorage si disponible et non vide, sinon mock
       const saved = localStorage.getItem('signalements');
-      const data = saved ? JSON.parse(saved) : mockSignalements;
+      let data = mockSignalements; // Par défaut, utiliser les données mock
+      
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          // Utiliser localStorage seulement si c'est un tableau non vide
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            data = parsed;
+          }
+        } catch (e) {
+          console.log('localStorage invalide, utilisation des données mock');
+        }
+      }
+      
+      console.log('Signalements chargés:', data.length, 'points');
       setSignalements(data);
       setRecapitulatif(calculateRecapitulatif(data));
     } catch (err) {
