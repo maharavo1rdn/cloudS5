@@ -6,12 +6,23 @@
 
 -- Se connecter à la base cloud_db
 
+-- Créer la table roles
+CREATE TABLE IF NOT EXISTS roles (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE,
+    level INT NOT NULL DEFAULT 1,
+    "createdAt" TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+
+);
+
 -- Créer la table users
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(255) NOT NULL UNIQUE,
     email VARCHAR(255) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
+    role_id INT REFERENCES roles(id) ON DELETE SET NULL,
     isBlocked BOOLEAN DEFAULT FALSE,
     "createdAt" TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -35,12 +46,21 @@ CREATE TABLE IF NOT EXISTS settings (
     date TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Insérer les rôles par défaut
+-- Niveaux d'accès:
+--   utilisateur (level 1): consultation des routes et statistiques (utilisateur connecté)
+--   manager (level 5): CRUD routes, synchronisation, gestion des signalements
+-- Note: Les visiteurs non connectés ont accès à la page d'accueil sans authentification
+INSERT INTO roles (name, level) VALUES
+('utilisateur', 1),
+('manager', 5)
+ON CONFLICT (name) DO NOTHING;
+
 -- Insérer des utilisateurs de test
--- Mot de passe pour user1: password123 (hashé)
--- Mot de passe pour user2: testpass (hashé)
-INSERT INTO users (username, email, password) VALUES
-('Jean Dupont', 'user@gmail.com', '$2b$10$ZtILaT9EXLGMcj0bah9O4usgz3XG.7MRBhslmBdQDJyb/UPUvSCfO'),
-('admin', 'admin@gmail.com', '$2b$10$j6DCBuJAnByRjz0sv0YRguf0AoVZQlG.aKUSfvu2EGMyTD20gyTcS')
+-- Mot de passe: password123 (hashé avec bcrypt)
+INSERT INTO users (username, email, password, role_id) VALUES
+('Jean Dupont', 'user@gmail.com', '$2b$10$ZtILaT9EXLGMcj0bah9O4usgz3XG.7MRBhslmBdQDJyb/UPUvSCfO', (SELECT id FROM roles WHERE name = 'utilisateur')),
+('Marie Rakoto', 'manager@gmail.com', '$2b$10$ZtILaT9EXLGMcj0bah9O4usgz3XG.7MRBhslmBdQDJyb/UPUvSCfO', (SELECT id FROM roles WHERE name = 'manager'))
 ON CONFLICT (email) DO NOTHING;
 
 -- Insérer les paramètres par défaut

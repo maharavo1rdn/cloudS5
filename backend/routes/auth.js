@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import AuthService from '../services/authService.js';
+import authenticateToken from '../middleware/auth.js';
 
 const router = Router();
 
@@ -162,6 +163,54 @@ router.post('/reset-attempts/:userId', async (req, res) => {
     const { userId } = req.params;
     const result = await AuthService.resetLoginAttempts(parseInt(userId, 10));
     res.json(result);
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/me:
+ *   get:
+ *     summary: Récupérer les informations de l'utilisateur connecté
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Informations utilisateur
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                     username:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     role:
+ *                       type: object
+ *       401:
+ *         description: Non authentifié
+ */
+router.get('/me', authenticateToken, async (req, res) => {
+  try {
+    // L'utilisateur est déjà disponible via le middleware authenticateToken
+    const user = req.user;
+    
+    res.json({
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role
+      }
+    });
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }

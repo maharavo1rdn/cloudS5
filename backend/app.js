@@ -5,6 +5,12 @@ import swaggerUi from 'swagger-ui-express';
 import sequelize from './config/database.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
+import settingsRoutes from './routes/settings.js';
+import routesAPIRoutes from './routes/routesAPI.js';
+import statsRoutes from './routes/stats.js';
+import syncRoutes from './routes/sync.js';
+import entreprisesRoutes from './routes/entreprises.js';
+import problemesRoutes from './routes/problemes.js';
 
 const app = express();
 
@@ -29,6 +35,34 @@ const swaggerOptions = {
           type: 'http',
           scheme: 'bearer',
           bearerFormat: 'JWT',
+        },
+      },
+      schemas: {
+        Setting: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'integer',
+              description: 'ID du paramètre',
+            },
+            code: {
+              type: 'string',
+              description: 'Code unique du paramètre',
+            },
+            value: {
+              type: 'string',
+              description: 'Valeur du paramètre',
+            },
+            type: {
+              type: 'string',
+              description: 'Type du paramètre',
+            },
+            date: {
+              type: 'string',
+              format: 'date-time',
+              description: 'Date de création',
+            },
+          },
         },
       },
     },
@@ -70,6 +104,12 @@ app.use((req, res, next) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/routes', routesAPIRoutes);  // Routes = travaux routiers
+app.use('/api/stats', statsRoutes);
+app.use('/api/sync', syncRoutes);
+app.use('/api/entreprises', entreprisesRoutes);
+app.use('/api/problemes', problemesRoutes);
 
 // Route de test
 app.get('/', (req, res) => {
