@@ -3,7 +3,39 @@ import AuthService from '../services/authService.js';
 
 const router = Router();
 
-// Route d'inscription
+/**
+ * @swagger
+ * /api/auth/register:
+ *   post:
+ *     summary: Inscrire un nouvel utilisateur
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - email
+ *               - password
+ *             properties:
+ *               username:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               password:
+ *                 type: string
+ *                 minLength: 6
+ *     responses:
+ *       201:
+ *         description: Utilisateur créé
+ *       400:
+ *         description: Erreur de validation
+ *       500:
+ *         description: Erreur serveur
+ */
 router.post('/register', async (req, res) => {
   try {
     if (!req.body) {
@@ -28,7 +60,46 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// Route de connexion
+/**
+ * @swagger
+ * /api/auth/login:
+ *   post:
+ *     summary: Se connecter
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Connexion réussie
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 token:
+ *                   type: string
+ *                 user:
+ *                   type: object
+ *       400:
+ *         description: Email ou mot de passe incorrect
+ *       500:
+ *         description: Erreur serveur
+ */
 router.post('/login', async (req, res) => {
   try {
     console.log('Requête reçue:', {

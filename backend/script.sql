@@ -17,7 +17,17 @@ CREATE TABLE IF NOT EXISTS users (
     "updatedAt" TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS settings(
+-- Créer la table pour les tentatives de connexion
+CREATE TABLE IF NOT EXISTS login_attempts (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    attempts INT DEFAULT 0,
+    last_attempt TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    blocked_until TIMESTAMP WITHOUT TIME ZONE
+);
+
+-- Créer la table settings
+CREATE TABLE IF NOT EXISTS settings (
     id SERIAL PRIMARY KEY,
     code VARCHAR(255) NOT NULL UNIQUE,
     value VARCHAR(255) NOT NULL,
@@ -32,6 +42,12 @@ INSERT INTO users (username, email, password) VALUES
 ('Jean Dupont', 'user@gmail.com', '$2b$10$ZtILaT9EXLGMcj0bah9O4usgz3XG.7MRBhslmBdQDJyb/UPUvSCfO'),
 ('admin', 'admin@gmail.com', '$2b$10$j6DCBuJAnByRjz0sv0YRguf0AoVZQlG.aKUSfvu2EGMyTD20gyTcS')
 ON CONFLICT (email) DO NOTHING;
+
+-- Insérer les paramètres par défaut
+INSERT INTO settings (code, value, type) VALUES
+('max_login_attempts', '3', 'number'),
+('session_lifetime_hours', '24', 'number')
+ON CONFLICT (code) DO NOTHING;
 
 -- Vérifier les données
 SELECT * FROM users;
