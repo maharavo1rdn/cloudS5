@@ -1,6 +1,7 @@
-import Route from '../models/Route.js';
-import RoutePoint from '../models/RoutePoint.js';
-
+import { Sequelize, Op } from 'sequelize';
+import sequelize from '../config/database.js';
+import models from '../models/index.js';
+const { Route, Entreprise, Probleme, RoutePoint } = models;
 class StatistiqueService {
   // Récupérer les états des routes
   static async getEtatsRoutes() {

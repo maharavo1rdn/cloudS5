@@ -31,7 +31,7 @@ const RoutePoint = sequelize.define('RoutePoint', {
   tableName: 'route_points',
   timestamps: true,
   createdAt: 'created_at',
-  updatedAt: 'updated_at',
+  updatedAt: false,
 });
 
 export default RoutePoint;
