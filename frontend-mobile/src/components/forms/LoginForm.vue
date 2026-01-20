@@ -92,7 +92,7 @@ import authService from '../../services/authService';
 const router = useRouter();
 
 const form = ref<LoginCredentials>({
-  email: 'user@gmail.com',
+  email: 'admin@gmail.com',
   password: 'password123'
 });
 

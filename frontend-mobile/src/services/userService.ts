@@ -75,7 +75,6 @@ class UserService {
         // Créer un nouveau profil avec le rôle 'user' par défaut
         profile = await this.createUserProfile(uid, email, 'user');
       }
-
       return profile;
     } catch (error) {
       console.error('Erreur lors de getOrCreateUserProfile:', error);

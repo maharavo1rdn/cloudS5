@@ -47,13 +47,16 @@ class AuthService {
       // Récupérer ou créer le profil utilisateur dans Firestore
       const userProfile = await userService.getOrCreateUserProfile(data.localId, data.email);
 
+      // Déterminer le rôle basé sur l'email (admin@gmail.com = manager)
+      const userRole = data.email === 'admin@gmail.com' ? 'manager' : 'user';
+
       // Stocker le token et les données utilisateur avec le rôle
       await this.setToken(data.idToken);
       await this.setUserData({
         email: data.email,
         localId: data.localId,
       });
-      await this.setUserRole(userProfile.role);
+      await this.setUserRole(userRole);
 
       return data;
     } catch (error) {
@@ -83,8 +86,9 @@ class AuthService {
         throw new Error(this.getErrorMessage(error.error.message));
       }
 
-      // Créer le profil utilisateur dans Firestore avec rôle 'user'
-      const userProfile = await userService.createUserProfile(data.localId, data.email, 'user');
+      // Créer le profil utilisateur dans Firestore avec rôle basé sur l'email
+      const userRole = data.email === 'admin@gmail.com' ? 'manager' : 'user';
+      const userProfile = await userService.createUserProfile(data.localId, data.email, userRole);
 
       // Stocker le token et les données utilisateur
       await this.setToken(data.idToken);
@@ -128,8 +132,8 @@ class AuthService {
   }
 
   async isManager(): Promise<boolean> {
-    const role = await this.getUserRole();
-    return role === 'manager';
+    const userData = await this.getUserData();
+    return userData?.email === 'admin@gmail.com';
   }
 
   // Vérifier la connectivité Firestore
@@ -157,14 +161,18 @@ class AuthService {
     const errorMessages: Record<string, string> = {
       'EMAIL_NOT_FOUND': 'Email ou mot de passe incorrect',
       'INVALID_PASSWORD': 'Email ou mot de passe incorrect',
+      'INVALID_EMAIL': 'Adresse email invalide',
+      'MISSING_EMAIL': 'Adresse email requise',
+      'MISSING_PASSWORD': 'Mot de passe requis',
       'USER_DISABLED': 'Ce compte a été désactivé',
       'EMAIL_EXISTS': 'Cet email est déjà utilisé',
-      'INVALID_EMAIL': 'Email invalide',
       'WEAK_PASSWORD': 'Mot de passe trop faible (minimum 6 caractères)',
       'TOO_MANY_ATTEMPTS_TRY_LATER': 'Trop de tentatives. Réessayez plus tard',
+      'OPERATION_NOT_ALLOWED': 'Connexion temporairement indisponible',
+      'INVALID_LOGIN_CREDENTIALS': 'Email ou mot de passe incorrect',
     };
 
-    return errorMessages[firebaseError] || 'Une erreur est survenue. Veuillez réessayer.';
+    return errorMessages[firebaseError] || 'Une erreur inattendue est survenue. Vérifiez votre connexion internet.';
   }
 }
 
