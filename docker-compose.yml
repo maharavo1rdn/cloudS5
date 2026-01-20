@@ -31,9 +31,16 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/script.sql:/docker-entrypoint-initdb.d/script.sql
+      - ./backend/01_script.sql:/docker-entrypoint-initdb.d/01_script.sql
+      - ./backend/02_scriptRoutes.sql:/docker-entrypoint-initdb.d/02_scriptRoutes.sql
+      - ./backend/03_data.sql:/docker-entrypoint-initdb.d/03_data.sql
     networks:
       - app-network
+
+    command: >
+      postgres
+      -c "listen_addresses=*"
+      -c "log_statement=all"
 
   tileserver:
     image: maptiler/tileserver-gl
