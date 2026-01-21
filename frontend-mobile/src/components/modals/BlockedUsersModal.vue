@@ -203,18 +203,18 @@ ion-title {
   width: 64px;
   height: 64px;
   margin: 0 auto 16px;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  background: linear-gradient(135deg, #fff5f5 0%, #fee2e2 100%); /* light red */
   border-radius: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.2);
+  box-shadow: 0 8px 16px rgba(239, 68, 68, 0.06);
 }
 
 .header-icon ion-icon {
   font-size: 32px;
-  color: white;
-}
+  color: #dc2626; /* red icon for clarity */
+} 
 
 .header-title {
   font-size: 24px;
@@ -272,8 +272,12 @@ ion-title {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 64px 32px;
+  padding: 48px 32px;
   text-align: center;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  border: 1px solid #e6eef8;
 }
 
 .empty-icon {
@@ -558,6 +562,36 @@ ion-title {
 
   .header-subtitle {
     font-size: 13px;
+  }
+}
+
+@media (max-width: 480px) {
+  .empty-state {
+    padding: 36px 16px;
+  }
+
+  .empty-icon {
+    width: 64px;
+    height: 64px;
+  }
+
+  .empty-icon ion-icon {
+    font-size: 32px;
+  }
+
+  .empty-title {
+    font-size: 18px;
+  }
+
+  .empty-text {
+    font-size: 13px;
+    max-width: 260px;
+  }
+
+  .blocked-card {
+    padding: 16px;
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
 }
 </style>

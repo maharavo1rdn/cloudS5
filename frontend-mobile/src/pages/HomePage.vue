@@ -15,6 +15,9 @@
           <ion-button v-if="isManager" @click="showBlockedModal = true" fill="clear" title="Utilisateurs bloqués">
             <ion-icon :icon="warning" slot="icon-only"></ion-icon>
           </ion-button>
+          <ion-button @click="showStatsModal = true" fill="clear" title="Statistiques">
+            <ion-icon :icon="statsChart" slot="icon-only"></ion-icon>
+          </ion-button>
           <ion-button @click="handleLogout" fill="clear">
             <ion-icon :icon="logOut" slot="icon-only"></ion-icon>
           </ion-button>
@@ -113,10 +116,10 @@
             class="route-card"
             @click="selectRoute(route)"
           >
-            <div class="route-card-header" :style="{ background: getStatusConfig(route.statut).gradient }">
+            <div class="route-card-header" :style="{ background: getStatusConfig(route.point_statut).gradient }">
               <div class="route-card-icon">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
-                  <path :d="getIconPathForStatus(route.statut)"/>
+                  <path :d="getIconPathForStatus(route.point_statut)"/>
                 </svg>
               </div>
               <div class="route-card-title-section">
@@ -138,9 +141,14 @@
               
               <div class="route-card-field">
                 <span class="field-label">Statut</span>
-                <span class="status-badge-inline" :style="{ background: getStatusConfig(route.statut).gradient }">
-                  {{ getStatusConfig(route.statut).label }}
+                <span class="status-badge-inline" :style="{ background: getStatusConfig(route.point_statut).gradient }">
+                  {{ getStatusConfig(route.point_statut).label }}
                 </span>
+              </div>
+
+              <div v-if="route.entreprise" class="route-card-field">
+                <span class="field-label">Entreprise</span>
+                <span class="field-value">{{ route.entreprise.nom }}</span>
               </div>
               
               <div v-if="route.surface_m2" class="route-card-field">
@@ -148,9 +156,9 @@
                 <span class="field-value">{{ route.surface_m2 }} m²</span>
               </div>
               
-              <div v-if="route.points && route.points.length > 0" class="route-card-field">
+              <div v-if="route.latitude && route.longitude" class="route-card-field">
                 <span class="field-label">Position</span>
-                <span class="field-value coords">{{ route.points[0].latitude.toFixed(6) }}, {{ route.points[0].longitude.toFixed(6) }}</span>
+                <span class="field-value coords">{{ route.latitude.toFixed(6) }}, {{ route.longitude.toFixed(6) }}</span>
               </div>
             </div>
             
@@ -244,6 +252,12 @@
       @close="showBlockedModal = false"
       @success="showBlockedModal = false"
     />
+
+    <StatisticsModal
+      :is-open="showStatsModal"
+      :routes="routes"
+      @close="showStatsModal = false"
+    />
   </ion-page>
 </template>
 
@@ -263,7 +277,7 @@ import {
   IonFabButton,
   IonSpinner,
 } from '@ionic/vue';
-import { logOut, add, personAdd, locate, warning, alertCircle, construct, checkmarkCircle, map as mapIcon, list, person, documentOutline, pencil, refreshCircle } from 'ionicons/icons';
+import { logOut, add, personAdd, locate, warning, alertCircle, construct, checkmarkCircle, map as mapIcon, list, person, documentOutline, pencil, refreshCircle, statsChart } from 'ionicons/icons';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import authService from '../services/authService';
@@ -273,6 +287,7 @@ import ReportIssueModal from '../components/modals/ReportIssueModal.vue';
 import EditRouteModal from '../components/modals/EditRouteModal.vue';
 import ResetAttemptsModal from '../components/modals/ResetAttemptsModal.vue';
 import BlockedUsersModal from '../components/modals/BlockedUsersModal.vue';
+import StatisticsModal from '../components/modals/StatisticsModal.vue';
 import ConnectivityBanner from '../components/ConnectivityBanner.vue';
 import { Route } from '../types/route.types';
 
@@ -284,6 +299,7 @@ const showReportModal = ref(false);
 const showEditModal = ref(false);
 const showResetModal = ref(false);
 const showBlockedModal = ref(false);
+const showStatsModal = ref(false);
 const selectedRoute = ref<Route | null>(null);
 const currentLocation = ref<{ lat: number; lng: number } | null>(null);
 const clickedLocation = ref<{ lat: number; lng: number } | null>(null);
@@ -307,9 +323,9 @@ const filteredRoutes = computed(() => {
 const routesByStatus = computed(() => {
   const routesToCount = filteredRoutes.value;
   return {
-    NOUVEAU: routesToCount.filter(r => r.statut === 'NOUVEAU').length,
-    EN_COURS: routesToCount.filter(r => r.statut === 'EN_COURS').length,
-    TERMINE: routesToCount.filter(r => r.statut === 'TERMINE').length,
+    NOUVEAU: routesToCount.filter(r => r.point_statut === 'NOUVEAU').length,
+    EN_COURS: routesToCount.filter(r => r.point_statut === 'EN_COURS').length,
+    TERMINE: routesToCount.filter(r => r.point_statut === 'TERMINE').length,
   };
 });
 
@@ -456,9 +472,7 @@ const displayRouteMarkers = () => {
   
   // Use filteredRoutes so markers reflect current filter (mes signalements)
   filteredRoutes.value.forEach(route => {
-    if (!map || !route.points || route.points.length === 0) return;
-    
-    const firstPoint = route.points[0];
+    if (!map || !route.latitude || !route.longitude) return;
     
     const statusConfig = {
       NOUVEAU: { 
@@ -481,27 +495,25 @@ const displayRouteMarkers = () => {
       }
     };
     
-    const config = statusConfig[route.statut] || statusConfig.NOUVEAU;
+    const config = statusConfig[route.point_statut] || statusConfig.NOUVEAU;
     
-    const customIcon = L.divIcon({
-      className: 'route-marker',
-      html: `
-        <div class="marker-container">
-          <div class="marker-pin" style="background: ${config.gradient};">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
-              ${getIconPath(config.icon)}
-            </svg>
+    const marker = L.marker([route.latitude, route.longitude], {
+      icon: L.divIcon({
+        className: 'route-marker',
+        html: `
+          <div class="marker-container">
+            <div class="marker-pin" style="background: ${config.gradient};">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
+                ${getIconPath(config.icon)}
+              </svg>
+            </div>
+            <div class="marker-pulse" style="border-color: ${config.color};"></div>
           </div>
-          <div class="marker-pulse" style="border-color: ${config.color};"></div>
-        </div>
-      `,
+        `,
       iconSize: [32, 32],
       iconAnchor: [16, 32],
       popupAnchor: [0, -32],
-    });
-    
-    const marker = L.marker([firstPoint.latitude, firstPoint.longitude], {
-      icon: customIcon,
+    })
     }).addTo(map);
     
     const statusBadge = `<span class="status-badge" style="background: ${config.gradient};">${config.label}</span>`;
@@ -519,6 +531,26 @@ const displayRouteMarkers = () => {
               <div class="section-value">${route.description}</div>
             </div>
           ` : ''}
+          ${route.entreprise ? `
+            <div class="popup-section">
+              <div class="section-label">Entreprise</div>
+              <div class="section-value">${route.entreprise.nom}</div>
+            </div>
+          ` : ''}
+
+          ${route.budget ? `
+            <div class="popup-metric">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 1v22" />
+                <path d="M17 5H9a4 4 0 0 0 0 8h6a4 4 0 0 1 0 8H7" />
+              </svg>
+              <div>
+                <div class="metric-label">Budget estimé</div>
+                <div class="metric-value">${route.budget.toLocaleString('fr-FR')} Ar</div>
+              </div>
+            </div>
+          ` : ''}
+
           ${route.surface_m2 ? `
             <div class="popup-metric">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -530,6 +562,7 @@ const displayRouteMarkers = () => {
               </div>
             </div>
           ` : ''}
+
           <div class="popup-metric">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
@@ -542,6 +575,39 @@ const displayRouteMarkers = () => {
               <div class="metric-value">${route.date_detection instanceof Date ? route.date_detection.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}</div>
             </div>
           </div>
+
+          ${route.date_debut ? `
+            <div class="popup-metric">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M8 7V3h8v4" />
+                <rect x="3" y="5" width="18" height="16" rx="2" />
+              </svg>
+              <div>
+                <div class="metric-label">Début des travaux</div>
+                <div class="metric-value">${route.date_debut instanceof Date ? route.date_debut.toLocaleDateString('fr-FR') : 'N/A'}</div>
+              </div>
+            </div>
+          ` : ''}
+
+          ${route.date_fin ? `
+            <div class="popup-metric">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M8 17v4h8v-4" />
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+              </svg>
+              <div>
+                <div class="metric-label">Fin des travaux</div>
+                <div class="metric-value">${route.date_fin instanceof Date ? route.date_fin.toLocaleDateString('fr-FR') : 'N/A'}</div>
+              </div>
+            </div>
+          ` : ''}
+
+          ${route.avancement_pourcentage ? `
+            <div class="popup-section">
+              <div class="section-label">Avancement</div>
+              <div class="section-value"><div class="popup-progress"><div class="popup-progress-fill" style="width: ${route.avancement_pourcentage}%"></div></div> ${route.avancement_pourcentage}%</div>
+            </div>
+          ` : ''}
         </div>
         ${isManager.value ? `
           <div class="popup-footer">
@@ -603,14 +669,14 @@ const toggleMyReports = () => {
 };
 
 const selectRoute = (route: Route) => {
-  if (viewMode.value === 'list' && route.points && route.points.length > 0) {
+  if (viewMode.value === 'list' && route.latitude && route.longitude) {
     viewMode.value = 'map';
     setTimeout(() => {
-      if (map && route.points && route.points.length > 0) {
-        map.setView([route.points[0].latitude, route.points[0].longitude], 17);
+      if (map) {
+        map.setView([route.latitude, route.longitude], 17);
         routeMarkers.forEach(marker => {
           const markerLatLng = marker.getLatLng();
-          if (route.points && route.points.length > 0 && markerLatLng.lat === route.points[0].latitude && markerLatLng.lng === route.points[0].longitude) {
+          if (markerLatLng.lat === route.latitude && markerLatLng.lng === route.longitude) {
             marker.openPopup();
           }
         });
@@ -1351,9 +1417,25 @@ ion-fab-button:hover {
 
 :deep(.metric-value) {
   font-size: 13px;
-  font-weight: 600;
-  color: #0f172a;
-  letter-spacing: -0.01em;
+}
+
+:deep(.popup-progress) {
+  width: 100%;
+  background: #f1f5f9;
+  border-radius: 8px;
+  height: 8px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+
+:deep(.popup-progress-fill) {
+  height: 100%;
+  background: linear-gradient(90deg, #0f172a 0%, #2563eb 100%);
+  border-radius: 8px;
+}
+
+:deep(.popup-metric .metric-value) {
+  font-weight: 700;
 }
 
 :deep(.location-popup) {
@@ -1419,6 +1501,22 @@ ion-fab-button:hover {
 
   .stat-value {
     font-size: 18px;
+  }
+
+  /* Mobile-specific adjustments */
+  @media (max-width: 640px) {
+    .route-card-header { padding: 12px; gap: 8px; }
+    .route-card-icon { width: 36px; height: 36px; }
+    .route-card-title { font-size: 15px; white-space: normal; }
+    .route-card-body { padding: 12px; gap: 8px; }
+    .route-card-field { flex-direction: column; align-items: flex-start; gap: 6px; }
+    .field-value { text-align: left; }
+  }
+
+  @media (max-width: 360px) {
+    .stat-item { min-width: 0; padding: 8px 10px; }
+    .stat-value { font-size: 16px; }
+    .stats-panel { left: 8px; bottom: 120px; }
   }
 }
 </style>

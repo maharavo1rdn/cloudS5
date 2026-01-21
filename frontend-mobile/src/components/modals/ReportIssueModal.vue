@@ -1,5 +1,5 @@
 <template>
-  <ion-modal :is-open="isOpen" @didDismiss="closeModal" :breakpoints="[0, 0.6, 0.9, 1]" :initial-breakpoint="initialBreakpoint">
+  <ion-modal :is-open="isOpen" @didDismiss="closeModal" :breakpoints="[0, 0.6, 0.9, 1]" :initial-breakpoint="0.95" :swipeToClose="false">
     <ion-header>
       <ion-toolbar>
         <ion-title>Nouveau signalement</ion-title>
@@ -75,7 +75,7 @@
           </label>
           <div class="select-container" :class="{ focused: statutFocused }">
             <ion-select
-              v-model="form.statut"
+              v-model="form.point_statut"
               interface="popover"
               :placeholder="getStatutPlaceholder()"
               :disabled="loading"
@@ -89,6 +89,59 @@
               <ion-select-option value="ANNULE">Annulé</ion-select-option>
               <ion-select-option value="EN_ATTENTE">En attente</ion-select-option>
             </ion-select>
+          </div>
+        </div>
+
+        <!-- Entreprise (optionnel) -->
+        <div class="input-wrapper">
+          <label class="input-label">
+            <ion-icon :icon="businessOutline" class="label-icon"></ion-icon>
+            <span>Entreprise (optionnel)</span>
+          </label>
+          <div class="select-container" :class="{ focused: entrepriseFocused }">
+            <ion-select
+              v-model="form.entreprise_id"
+              interface="popover"
+              :disabled="loading"
+              @ionFocus="entrepriseFocused = true"
+              @ionBlur="entrepriseFocused = false"
+            >
+              <ion-select-option :value="''">Aucune</ion-select-option>
+              <ion-select-option v-for="e in entreprises" :key="e.id" :value="e.id">{{ e.nom }}</ion-select-option>
+            </ion-select>
+          </div>
+        </div>
+
+        <!-- Dates (Manager only) -->
+        <div v-if="isManager" class="input-wrapper">
+          <label class="input-label">
+            <ion-icon :icon="calendarOutline" class="label-icon"></ion-icon>
+            <span>Date de début</span>
+          </label>
+          <div class="input-container" :class="{ focused: dateDebutFocused }">
+            <ion-input
+              v-model="form.date_debut"
+              type="date"
+              :disabled="loading"
+              @ionFocus="dateDebutFocused = true"
+              @ionBlur="dateDebutFocused = false"
+            ></ion-input>
+          </div>
+        </div>
+
+        <div v-if="isManager" class="input-wrapper">
+          <label class="input-label">
+            <ion-icon :icon="calendarOutline" class="label-icon"></ion-icon>
+            <span>Date de fin</span>
+          </label>
+          <div class="input-container" :class="{ focused: dateFinFocused }">
+            <ion-input
+              v-model="form.date_fin"
+              type="date"
+              :disabled="loading"
+              @ionFocus="dateFinFocused = true"
+              @ionBlur="dateFinFocused = false"
+            ></ion-input>
           </div>
         </div>
 
@@ -125,6 +178,25 @@
               placeholder="0.00"
               @ionFocus="surfaceFocused = true"
               @ionBlur="surfaceFocused = false"
+            ></ion-input>
+          </div>
+        </div>
+
+        <!-- Budget -->
+        <div class="input-wrapper">
+          <label class="input-label">
+            <ion-icon :icon="cashOutline" class="label-icon"></ion-icon>
+            <span>Budget estimé (Ar)</span>
+          </label>
+          <div class="input-container" :class="{ focused: budgetFocused }">
+            <ion-input
+              v-model.number="form.budget"
+              type="number"
+              step="0.01"
+              :disabled="loading"
+              placeholder="0.00"
+              @ionFocus="budgetFocused = true"
+              @ionBlur="budgetFocused = false"
             ></ion-input>
           </div>
         </div>
@@ -206,10 +278,13 @@ import {
   checkmarkCircle,
   warning,
   flagOutline,
+  cashOutline,
+  businessOutline,
+  calendarOutline,
 } from 'ionicons/icons';
 import routeService from '../../services/routeService';
 import authService from '../../services/authService';
-import { Probleme, RouteStatut } from '../../types/route.types';
+import { Probleme, PointStatut, Entreprise } from '../../types/route.types';
 
 interface Props {
   isOpen: boolean;
@@ -219,29 +294,59 @@ interface Props {
 const props = defineProps<Props>();
 const emit = defineEmits(['close', 'success']);
 
+const isManager = ref(false);
+
 const form = ref<{
   nom: string;
   description: string;
   probleme_id: string;
-  statut: RouteStatut;
+  point_statut: PointStatut;
   surface_m2: number | undefined;
+  budget: number | undefined;
+  entreprise_id?: string;
+  date_debut?: string;
+  date_fin?: string;
 }>({
   nom: '',
   description: '',
   probleme_id: '',
-  statut: 'NOUVEAU',
+  point_statut: 'NOUVEAU',
   surface_m2: undefined,
+  budget: undefined,
+  entreprise_id: undefined,
+  date_debut: undefined,
+  date_fin: undefined,
 });
 
 const problemes = ref<Probleme[]>([]);
+const entreprises = ref<Entreprise[]>([]);
 const loading = ref(false);
 const error = ref('');
 const success = ref('');
 const nomFocused = ref(false);
 const problemeFocused = ref(false);
 const statutFocused = ref(false);
+const entrepriseFocused = ref(false);
+const dateDebutFocused = ref(false);
+const dateFinFocused = ref(false);
 const descriptionFocused = ref(false);
+
+onMounted(async () => {
+  await loadProblemes();
+  entreprises.value = await routeService.getEntreprises();
+  isManager.value = await authService.isManager();
+});
+
+// Set default date_debut to today when modal opens
+watch(() => props.isOpen, (open) => {
+  if (open) {
+    const today = new Date().toISOString().split('T')[0];
+    if (!form.value.date_debut) form.value.date_debut = today;
+  }
+});
+
 const surfaceFocused = ref(false);
+const budgetFocused = ref(false);
 
 // Responsive initial breakpoint for the modal (full screen on small devices)
 const initialBreakpoint = ref<number>(0.9);
@@ -269,11 +374,13 @@ const statutsDisponibles = [
 ];
 
 const isFormValid = computed(() => {
-  return (
-    form.value.nom.trim() !== '' &&
-    form.value.probleme_id !== '' &&
-    props.currentLocation !== null
-  );
+  if (form.value.nom.trim() === '' || form.value.probleme_id === '' || props.currentLocation === null) return false;
+  if (form.value.date_debut && form.value.date_fin) {
+    const dDeb = new Date(form.value.date_debut);
+    const dFin = new Date(form.value.date_fin);
+    if (dFin < dDeb) return false;
+  }
+  return true;
 });
 
 // Fonction pour obtenir le placeholder du problème
@@ -287,10 +394,10 @@ const getProblemePlaceholder = () => {
 
 // Fonction pour obtenir le placeholder du statut
 const getStatutPlaceholder = () => {
-  if (!form.value.statut) {
+  if (!form.value.point_statut) {
     return 'Sélectionnez un statut';
   }
-  const statut = statutsDisponibles.find(s => s.value === form.value.statut);
+  const statut = statutsDisponibles.find(s => s.value === form.value.point_statut);
   return statut ? statut.label : 'Sélectionnez un statut';
 };
 
@@ -301,14 +408,15 @@ onMounted(async () => {
 const loadProblemes = async () => {
   try {
     problemes.value = await routeService.getProblemes();
+    entreprises.value = await routeService.getEntreprises();
     
     // Si aucun problème n'existe, initialiser les problèmes par défaut
     if (problemes.value.length === 0) {
       await routeService.initializeDefaultProblemes();
       problemes.value = await routeService.getProblemes();
     }
-  } catch (err) {
-    console.error('Erreur lors du chargement des problèmes:', err);
+  } catch (error) {
+    console.error('Erreur lors du chargement des problèmes / entreprises:', error);
   }
 };
 
@@ -330,10 +438,14 @@ const handleSubmit = async () => {
         nom: form.value.nom,
         description: form.value.description,
         probleme_id: form.value.probleme_id,
-        statut: form.value.statut,
+        point_statut: form.value.point_statut,
         latitude: props.currentLocation.lat,
         longitude: props.currentLocation.lng,
         surface_m2: form.value.surface_m2,
+        budget: form.value.budget,
+        entreprise_id: form.value.entreprise_id || undefined,
+        date_debut: form.value.date_debut ? new Date(form.value.date_debut) : undefined,
+        date_fin: form.value.date_fin ? new Date(form.value.date_fin) : undefined,
       },
       userData.localId
     );
@@ -359,16 +471,22 @@ const closeModal = () => {
     nom: '',
     description: '',
     probleme_id: '',
-    statut: 'NOUVEAU',
+    point_statut: 'NOUVEAU',
     surface_m2: undefined,
+    budget: undefined,
+    entreprise_id: undefined,
+    date_debut: undefined,
+    date_fin: undefined,
   };
   error.value = '';
   success.value = '';
   nomFocused.value = false;
   problemeFocused.value = false;
   statutFocused.value = false;
+  entrepriseFocused.value = false;
   descriptionFocused.value = false;
   surfaceFocused.value = false;
+  budgetFocused.value = false;
   emit('close');
 };
 </script>
