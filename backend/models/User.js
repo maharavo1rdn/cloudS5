@@ -1,5 +1,6 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../config/database.js';
+import Role from './Role.js';
 
 const User = sequelize.define('User', {
   id: {
@@ -24,9 +25,19 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING,
     allowNull: false,
   },
+  role_id: {
+    type: DataTypes.INTEGER,
+    references: {
+      model: Role,
+      key: 'id',
+    },
+  },
 }, {
   tableName: 'users',
   timestamps: true,
 });
+
+// Association
+User.belongsTo(Role, { foreignKey: 'role_id', as: 'role' });
 
 export default User;

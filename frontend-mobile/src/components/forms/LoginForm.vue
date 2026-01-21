@@ -77,31 +77,22 @@
         <ion-spinner v-if="loading" name="crescent" class="button-spinner"></ion-spinner>
         <span v-else>Se connecter</span>
       </ion-button>
-
-      <!-- Divider -->
-      <div class="divider">
-        <span class="divider-text">ou</span>
-      </div>
-
-      <!-- Register Link -->
-      <div class="register-section">
-        <p class="register-text">
-          Vous n'avez pas de compte ?
-          <a href="#" class="register-link">Créer un compte</a>
-        </p>
-      </div>
     </form>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { useRouter } from 'vue-router';
 import { IonInput, IonButton, IonSpinner, IonIcon } from '@ionic/vue';
 import { mail, lockClosed, eye, eyeOff, alertCircle } from 'ionicons/icons';
 import { LoginCredentials } from '../../types';
+import authService from '../../services/authService';
+
+const router = useRouter();
 
 const form = ref<LoginCredentials>({
-  email: 'user@gmail.com',
+  email: 'admin@gmail.com',
   password: 'password123'
 });
 
@@ -125,28 +116,11 @@ const handleLogin = async () => {
   error.value = '';
 
   try {
-    const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
-
-    const response = await fetch(`${apiUrl}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(form.value),
-    });
-
-    console.log('Response status:', response.status);
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Une erreur est survenue');
-    }
-
-    const data = await response.json();
-    console.log('Response data:', data);
-
-    localStorage.setItem('jwt_token', data.token);
+    await authService.login(form.value.email, form.value.password);
     console.log('Connexion réussie');
+    
+    // Rediriger vers la page d'accueil
+    router.replace('/home');
   } catch (err) {
     console.error('Login error:', err);
     error.value = err instanceof Error ? err.message : 'Identifiants incorrects. Veuillez réessayer.';

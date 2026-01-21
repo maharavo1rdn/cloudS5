@@ -5,6 +5,7 @@ import swaggerUi from 'swagger-ui-express';
 import sequelize from './config/database.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
+import settingsRoutes from './routes/settings.js';
 
 const app = express();
 
@@ -29,6 +30,34 @@ const swaggerOptions = {
           type: 'http',
           scheme: 'bearer',
           bearerFormat: 'JWT',
+        },
+      },
+      schemas: {
+        Setting: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'integer',
+              description: 'ID du paramètre',
+            },
+            code: {
+              type: 'string',
+              description: 'Code unique du paramètre',
+            },
+            value: {
+              type: 'string',
+              description: 'Valeur du paramètre',
+            },
+            type: {
+              type: 'string',
+              description: 'Type du paramètre',
+            },
+            date: {
+              type: 'string',
+              format: 'date-time',
+              description: 'Date de création',
+            },
+          },
         },
       },
     },
@@ -70,6 +99,7 @@ app.use((req, res, next) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Route de test
 app.get('/', (req, res) => {

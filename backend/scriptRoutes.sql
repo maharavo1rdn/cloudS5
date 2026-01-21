@@ -15,37 +15,27 @@ CREATE TABLE entreprises (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Table principale des routes
-CREATE TABLE routes (
+CREATE TABLE point_statut(
     id SERIAL PRIMARY KEY,
-    nom VARCHAR(255) NOT NULL,
-    description TEXT,
-    
-    -- Infos sur le problème
+    code VARCHAR(50) NOT NULL UNIQUE,
+    description VARCHAR(255),
+    niveau INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE points (
+    id SERIAL PRIMARY KEY,
     probleme_id INTEGER REFERENCES problemes(id),
-    statut VARCHAR(20) DEFAULT 'NOUVEAU', -- 'NOUVEAU', 'EN_COURS', 'TERMINE'
     surface_m2 DECIMAL(10,2),
     budget DECIMAL(12,2),
-    
-    -- Entreprise et dates
     entreprise_id INTEGER REFERENCES entreprises(id),
     date_detection DATE DEFAULT CURRENT_DATE,
     date_debut DATE,
     date_fin DATE,
-    
-    -- État d'avancement
-    avancement_pourcentage INTEGER DEFAULT 0, -- 0-100%
-    
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
--- Table des points géographiques avec statut
-CREATE TABLE route_points (
-    id SERIAL PRIMARY KEY,
-    route_id INTEGER REFERENCES routes(id),
+    avancement_pourcentage INTEGER DEFAULT 0,
     latitude DECIMAL(10,8),
     longitude DECIMAL(11,8),
-    ordre INTEGER NOT NULL,
-    point_statut VARCHAR(20) DEFAULT 'A_TRAITER', -- 'A_TRAITER', 'EN_COURS', 'FINI'
-    created_at TIMESTAMP DEFAULT NOW()
+    point_statut_id INTEGER REFERENCES point_statut(id),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
 );
