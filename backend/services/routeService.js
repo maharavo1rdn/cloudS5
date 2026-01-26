@@ -19,9 +19,9 @@ class RouteService {
       }
 
       const points = await Point.findAll({
-        where: { 
-          point_statut_id: enCoursStatut.id 
-        },
+        // where: { 
+        //   point_statut_id: enCoursStatut.id 
+        // },
         include: [
           {
             model: Probleme,
