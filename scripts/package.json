@@ -1,0 +1,21 @@
+{
+  "name": "cloudS5-seed",
+  "version": "1.0.0",
+  "description": "Script pour importer des données de test dans Firebase",
+  "main": "seedFirebase.js",
+  "scripts": {
+    "seed": "node seedFirebase.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "firebase": "^12.8.0",
+    "firebase-admin": "^11.10.0"
+  },
+  "keywords": [
+    "firebase",
+    "seed",
+    "data"
+  ],
+  "author": "",
+  "license": "MIT"
+}

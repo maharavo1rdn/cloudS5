@@ -18,6 +18,8 @@ const HomePage    = () => import('@/pages/AccueilPage.vue');
 const ProfilePage = () => import('@/pages/ProfilePage.vue');
 const SettingsPage = () => import('@/pages/SettingsPage.vue');
 >>>>>>> ando/mobile/1
+import HomePage from "../pages/HomePage.vue";
+import authService from "../services/authService";
 
 const routes: Array<RouteRecordRaw> = [
   // Page de login → point d'entrée
@@ -66,6 +68,13 @@ const routes: Array<RouteRecordRaw> = [
   {
     path: '/:pathMatch(.*)*',
     redirect: '/',
+    meta: { requiresGuest: true },
+  },
+  {
+    path: "/home",
+    name: "Home",
+    component: HomePage,
+    meta: { requiresAuth: true },
   },
 ];
 
@@ -104,6 +113,21 @@ export default router;
 //     next();
 //   }
 // });
+
+// Navigation guards
+router.beforeEach(async (to, from, next) => {
+  const isAuthenticated = await authService.isAuthenticated();
+
+  if (to.meta.requiresAuth && !isAuthenticated) {
+    // Rediriger vers login si authentification requise
+    next('/');
+  } else if (to.meta.requiresGuest && isAuthenticated) {
+    // Rediriger vers home si déjà connecté
+    next('/home');
+  } else {
+    next();
+  }
+});
 
 export default router;
 >>>>>>> ando/mobile/1

@@ -1,0 +1,13 @@
+Tout ceci se passe dans le frontend-mobile
+J' ai changé la structure de la base(regarde le scriptroute.sql). J'ai enlevé la table routes et ajouteé un point_statut
+Je veux alors que tu adaptes le script de seeder lors de la migration vers la base de donées sur Firebase
+Je veux aussi que tu adaptes le code actuel alors pour adapter la nouvelle logique pour au code existant
+Sans faire d'erreur s'il te plait. Et respecte bien les champs à remplir lors d'un signalement et aussi les regles de gestion et fonctionnalités précédemment si pas encore implemnté ou si on a besion de modifier. Je vais quand meme les rappeler ici
+
+- Signaler les problèmes routiers à partir du map 
+(utiliser leaflet et openstreetmap en ligne)
+    • Localisation 
+- Afficher la carte et recap (cf fonctionnalités 
+visiteurs)
+- Mettre un filtre : afficher mes signalements 
+uniquement

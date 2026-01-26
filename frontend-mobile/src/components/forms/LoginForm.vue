@@ -77,19 +77,6 @@
         <ion-spinner v-if="loading" name="crescent" class="button-spinner"></ion-spinner>
         <span v-else>Se connecter</span>
       </ion-button>
-
-      <!-- Divider -->
-      <div class="divider">
-        <span class="divider-text">ou</span>
-      </div>
-
-      <!-- Register Link -->
-      <div class="register-section">
-        <p class="register-text">
-          Vous n'avez pas de compte ?
-          <a href="#" class="register-link">Créer un compte</a>
-        </p>
-      </div>
     </form>
   </div>
 </template>
@@ -105,7 +92,7 @@ import authService from '../../services/authService';
 const router = useRouter();
 
 const form = ref<LoginCredentials>({
-  email: 'user@gmail.com',
+  email: 'admin@gmail.com',
   password: 'password123'
 });
 
