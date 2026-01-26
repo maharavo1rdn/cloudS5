@@ -1,10 +1,3 @@
-<<<<<<< HEAD
-import { createRouter, createWebHistory } from "@ionic/vue-router";
-import { RouteRecordRaw } from "vue-router";
-import LoginPage from "../pages/LoginPage.vue";
-import HomePage from "../pages/HomePage.vue";
-import authService from "../services/authService";
-=======
 // src/router/index.ts
 import { createRouter, createWebHistory } from '@ionic/vue-router';
 import { RouteRecordRaw } from 'vue-router';
@@ -17,8 +10,6 @@ import Tabs from '@/pages/Tabs.vue';
 const HomePage    = () => import('@/pages/AccueilPage.vue');
 const ProfilePage = () => import('@/pages/ProfilePage.vue');
 const SettingsPage = () => import('@/pages/SettingsPage.vue');
->>>>>>> ando/mobile/1
-import HomePage from "../pages/HomePage.vue";
 import authService from "../services/authService";
 
 const routes: Array<RouteRecordRaw> = [
@@ -83,24 +74,6 @@ const router = createRouter({
   routes,
 });
 
-<<<<<<< HEAD
-// Navigation guards
-router.beforeEach(async (to, from, next) => {
-  const isAuthenticated = await authService.isAuthenticated();
-
-  if (to.meta.requiresAuth && !isAuthenticated) {
-    // Rediriger vers login si authentification requise
-    next('/');
-  } else if (to.meta.requiresGuest && isAuthenticated) {
-    // Rediriger vers home si déjà connecté
-    next('/home');
-  } else {
-    next();
-  }
-});
-
-export default router;
-=======
 // Guard simple (optionnel pour l'instant – à décommenter quand tu auras l'auth réelle)
 // router.beforeEach((to, from, next) => {
 //   const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true'; // ou utilise Pinia / ton store
@@ -130,4 +103,3 @@ router.beforeEach(async (to, from, next) => {
 });
 
 export default router;
->>>>>>> ando/mobile/1
