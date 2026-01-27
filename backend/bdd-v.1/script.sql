@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS settings (
 -- Insérer les rôles par défaut
 INSERT INTO roles (name, level) VALUES
 ('utilisateur', 3),
-('admin', 10)
+('manager', 10)
 ON CONFLICT (name) DO NOTHING;
 
 -- Insérer des utilisateurs de test
