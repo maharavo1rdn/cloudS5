@@ -14,16 +14,19 @@ const PointStatut = sequelize.define('PointStatut', {
   },
   description: {
     type: DataTypes.STRING(255),
+    allowNull: true,
   },
   niveau: {
     type: DataTypes.INTEGER,
     allowNull: false,
-  }
+  },
+  created_at: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
+  },
 }, {
   tableName: 'point_statut',
-  timestamps: true,
-  createdAt: 'created_at',
-  updatedAt: false,
+  timestamps: false,
 });
 
 export default PointStatut;

@@ -13,13 +13,12 @@ const Entreprise = sequelize.define('Entreprise', {
   },
   email: {
     type: DataTypes.STRING(255),
-    validate: {
-      isEmail: true
-    }
+    allowNull: true,
   },
   telephone: {
     type: DataTypes.STRING(20),
-  }
+    allowNull: true,
+  },
 }, {
   tableName: 'entreprises',
   timestamps: true,
