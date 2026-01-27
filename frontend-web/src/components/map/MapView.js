@@ -346,10 +346,17 @@ const MapView = ({ onMarkerClick }) => {
           whenReady={handleMapLoad}
           scrollWheelZoom={true}
         >
+          {/* TileLayer OpenStreetMap */}
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
+          
+          {/* TileLayer Tileserver local (commenté) */}
+          {/* <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors - Local tileserver'
+            url="http://localhost:8088/styles/basic-preview/{z}/{x}/{y}.png"
+          /> */}
           
           {/* Markers pour chaque signalement filtré */}
           {signalements.map((signalement) => {
