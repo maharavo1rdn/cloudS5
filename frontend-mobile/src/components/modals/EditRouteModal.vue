@@ -322,7 +322,7 @@ const form = ref<{
   nom: '',
   description: '',
   probleme_id: '',
-  point_statut: 'NOUVEAU',
+  point_statut: 'A_FAIRE',
   surface_m2: undefined,
   budget: undefined,
   date_debut: '',
@@ -350,7 +350,7 @@ const avancementFocused = ref(false);
 
 // Définir les statuts avec leurs labels
 const statutsDisponibles = [
-  { value: 'NOUVEAU', label: 'Nouveau' },
+  { value: 'A_FAIRE', label: 'À faire' },
   { value: 'EN_COURS', label: 'En cours' },
   { value: 'TERMINE', label: 'Terminé' },
 ];

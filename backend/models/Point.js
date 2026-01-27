@@ -57,6 +57,15 @@ const Point = sequelize.define('Point', {
       model: 'point_statut',
       key: 'id'
     }
+  },
+  firebase_id: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    unique: true,
+  },
+  last_synced_at: {
+    type: DataTypes.DATE,
+    allowNull: true,
   }
 }, {
   tableName: 'points',

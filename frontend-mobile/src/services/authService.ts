@@ -168,7 +168,7 @@ class AuthService {
 
   async isManager(): Promise<boolean> {
     const userData = await this.getUserData();
-    return userData?.email === 'admin@gmail.com';
+    return userData?.email === 'admin@gmail.com' || userData?.role === 'manager';
   }
 
   // Vérifier la connectivité Firestore

@@ -372,6 +372,8 @@ const SignalementsManager = () => {
           </div>
         )}
       </div>
+
+
     </div>
   );
 };

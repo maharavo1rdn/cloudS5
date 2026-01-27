@@ -3,9 +3,6 @@ services:
     build: ./backend
     ports:
       - "3000:3000"
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -16,8 +13,13 @@ services:
       - PORT=3000
       - NODE_ENV=development
       - ALLOWED_ORIGINS=http://localhost:8100,http://localhost:5173,http://localhost:3000,http://localhost:3001
+      - GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/serviceAccountKey.json
     depends_on:
       - postgres
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+      - ./backend/config/serviceAccountKey.json:/run/secrets/serviceAccountKey.json:ro
     networks:
       - app-network
 
@@ -33,6 +35,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/script.sql:/docker-entrypoint-initdb.d/script.sql
       - ./backend/scriptRoutes.sql:/docker-entrypoint-initdb.d/scriptRoutes.sql
+      - ./backend/migrations/z_add_firebase_sync_fields.sql:/docker-entrypoint-initdb.d/z_add_firebase_sync_fields.sql
     networks:
       - app-network
 
