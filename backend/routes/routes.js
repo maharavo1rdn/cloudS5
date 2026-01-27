@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import RouteService from '../services/routeService.js';
 import authenticateToken from '../middleware/auth.js';
+import Entreprise from '../models/Entreprise.js';
 
 const router = Router();
 
@@ -251,6 +252,27 @@ router.get('/problemes', async (req, res) => {
       message: 'Erreur serveur', 
       error: error.message 
     });
+  }
+});
+
+/**
+ * @swagger
+ * /api/routes/entreprises:
+ *   get:
+ *     summary: Récupérer la liste des entreprises (compatibilité frontend)
+ *     tags: [Routes]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Liste des entreprises
+ */
+router.get('/entreprises', async (req, res) => {
+  try {
+    const entreprises = await Entreprise.findAll({ order: [['nom', 'ASC']] });
+    res.json(entreprises);
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 });
 

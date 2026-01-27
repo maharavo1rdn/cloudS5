@@ -7,11 +7,6 @@ import authenticateToken from '../middleware/auth.js';
 
 const router = Router();
 
-// Associations
-Point.belongsTo(Probleme, { foreignKey: 'probleme_id', as: 'probleme' });
-Point.belongsTo(Entreprise, { foreignKey: 'entreprise_id', as: 'entreprise' });
-Point.belongsTo(PointStatut, { foreignKey: 'point_statut_id', as: 'statut' });
-
 // Middleware pour vérifier le rôle manager (level >= 5)
 const requireManager = (req, res, next) => {
   if (!req.user || req.user.level < 5) {

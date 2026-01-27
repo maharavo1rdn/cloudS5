@@ -134,6 +134,29 @@ export const usersAPI = {
     return apiCall(`/users/${userId}/block`, {
       method: 'PUT'
     });
+  },
+
+  // Créer un utilisateur (Manager)
+  create: async (userData) => {
+    return apiCall('/users', {
+      method: 'POST',
+      body: JSON.stringify(userData)
+    });
+  },
+
+  // Mettre à jour un utilisateur (Manager)
+  update: async (userId, userData) => {
+    return apiCall(`/users/admin/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify(userData)
+    });
+  },
+
+  // Supprimer un utilisateur (Manager)
+  delete: async (userId) => {
+    return apiCall(`/users/admin/${userId}`, {
+      method: 'DELETE'
+    });
   }
 };
 
@@ -150,6 +173,17 @@ export const syncAPI = {
   fetchFromFirebase: async () => {
     return apiCall('/sync/firebase/fetch', {
       method: 'GET'
+    });
+  }
+};
+
+// ==================== POINTS API ====================
+export const pointsAPI = {
+  // Créer un point (Manager)
+  create: async (pointData) => {
+    return apiCall('/points', {
+      method: 'POST',
+      body: JSON.stringify(pointData)
     });
   }
 };

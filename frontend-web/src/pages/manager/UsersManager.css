@@ -268,3 +268,18 @@
     justify-content: center;
   }
 }
+
+/* Create modal */
+.create-modal {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #e6eef8;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(30,41,59,0.04);
+}
+.create-modal .form-row { display:flex; gap:8px; margin-bottom:8px; }
+.create-modal input, .create-modal select { padding:8px; border-radius:6px; border:1px solid #e2e8f0; }
+.create-modal .form-actions { display:flex; gap:8px; }
+.create-modal .btn-cancel { background:#f3f4f6; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; }
+.create-modal button { padding:8px 12px; border-radius:6px; cursor:pointer; background:#2563eb; color:white; border:none; }
