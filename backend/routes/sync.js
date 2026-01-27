@@ -98,6 +98,31 @@ router.post('/pull', async (req, res) => {
     
     // Récupérer les points depuis Firebase
     const firebasePoints = await firebaseService.getPointsFromFirebase(since);
+
+    // Préparer le mapping des statuts Firebase -> SQL
+    const pointStatuts = await PointStatut.findAll();
+    const statutByCode = new Map(pointStatuts.map(ps => [ps.code, ps.id]));
+    const statutIds = new Set(pointStatuts.map(ps => ps.id));
+    const defaultStatutId = statutByCode.get('A_FAIRE') || pointStatuts[0]?.id || null;
+
+    const resolvePointStatutId = (fbPoint) => {
+      // Priorité: id déjà présent et valide
+      if (fbPoint.point_statut_id && statutIds.has(fbPoint.point_statut_id)) {
+        return fbPoint.point_statut_id;
+      }
+
+      // Essayer les codes connus (point_statut, statut)
+      const candidates = [fbPoint.point_statut, fbPoint.statut, fbPoint.status];
+      for (const candidate of candidates) {
+        if (!candidate) continue;
+        const normalized = typeof candidate === 'string' ? candidate.toUpperCase() : candidate;
+        if (statutByCode.has(normalized)) {
+          return statutByCode.get(normalized);
+        }
+      }
+
+      return defaultStatutId;
+    };
     
     const results = {
       received: firebasePoints.length,
@@ -110,6 +135,8 @@ router.post('/pull', async (req, res) => {
     // Pour chaque point Firebase, l'intégrer en base locale
     for (const fbPoint of firebasePoints) {
       try {
+        const resolvedPointStatutId = resolvePointStatutId(fbPoint);
+
         // Chercher si le point existe déjà (via firebase_id)
         let existingPoint = await Point.findOne({
           where: { firebase_id: fbPoint.firebase_id }
@@ -117,12 +144,23 @@ router.post('/pull', async (req, res) => {
 
         if (existingPoint) {
           // Mettre à jour si le point Firebase est plus récent
-          const fbUpdatedAt = new Date(fbPoint.updated_at);
+          const fbUpdatedAt = fbPoint.updated_at ? new Date(fbPoint.updated_at) : new Date();
           const localUpdatedAt = new Date(existingPoint.updated_at);
           
           if (fbUpdatedAt > localUpdatedAt) {
             await existingPoint.update({
-              ...fbPoint,
+              probleme_id: fbPoint.probleme_id || null,
+              surface_m2: fbPoint.surface_m2 ?? null,
+              budget: fbPoint.budget ?? null,
+              entreprise_id: fbPoint.entreprise_id || null,
+              date_detection: fbPoint.date_detection || existingPoint.date_detection,
+              date_debut: fbPoint.date_debut || null,
+              date_fin: fbPoint.date_fin || null,
+              avancement_pourcentage: fbPoint.avancement_pourcentage ?? existingPoint.avancement_pourcentage,
+              latitude: fbPoint.latitude ?? existingPoint.latitude,
+              longitude: fbPoint.longitude ?? existingPoint.longitude,
+              point_statut_id: resolvedPointStatutId,
+              updated_at: fbUpdatedAt,
               firebase_id: fbPoint.firebase_id,
               last_synced_at: new Date()
             });
@@ -179,10 +217,20 @@ router.post('/pull', async (req, res) => {
 
           // Créer nouveau point avec FK résolues
           await Point.create({
-            ...fbPoint,
-            firebase_id: fbPoint.firebase_id,
             probleme_id: resolvedProblemeId,
+            surface_m2: fbPoint.surface_m2 ?? null,
+            budget: fbPoint.budget ?? null,
             entreprise_id: resolvedEntrepriseId,
+            date_detection: fbPoint.date_detection || new Date(),
+            date_debut: fbPoint.date_debut || null,
+            date_fin: fbPoint.date_fin || null,
+            avancement_pourcentage: fbPoint.avancement_pourcentage ?? 0,
+            latitude: fbPoint.latitude ?? null,
+            longitude: fbPoint.longitude ?? null,
+            point_statut_id: resolvedPointStatutId,
+            firebase_id: fbPoint.firebase_id,
+            created_at: fbPoint.created_at || new Date(),
+            updated_at: fbPoint.updated_at || new Date(),
             last_synced_at: new Date()
           });
           results.created++;
@@ -249,6 +297,14 @@ router.post('/push', async (req, res) => {
       try {
         const operation = point.firebase_id ? 'update' : 'create';
         
+        // Résoudre le code de statut (push envoie le code lisible dans Firebase)
+        let statutCode = point.statut?.code;
+        if (!statutCode && point.point_statut_id) {
+          const ps = await PointStatut.findByPk(point.point_statut_id);
+          statutCode = ps?.code || null;
+        }
+        statutCode = statutCode || 'A_FAIRE';
+
         // Préparer les données pour Firebase (exclure les relations Sequelize)
         const pointData = {
           id: point.id,
@@ -263,6 +319,8 @@ router.post('/push', async (req, res) => {
           avancement_pourcentage: point.avancement_pourcentage,
           latitude: point.latitude ? parseFloat(point.latitude) : null,
           longitude: point.longitude ? parseFloat(point.longitude) : null,
+          // envoyer le code de statut lisible (A_FAIRE|EN_COURS|TERMINE) pour compatibilité Firebase
+          point_statut: statutCode,
           point_statut_id: point.point_statut_id,
           created_at: point.created_at,
           updated_at: point.updated_at
@@ -294,12 +352,13 @@ router.post('/push', async (req, res) => {
         results.rejected.push({
           local_id: point.id,
           reason: error.message,
-          error: error.code || 'unknown'
+          error: error.code || 'unknown',
+          stack: error.stack
         });
       }
     }
 
-    console.log(`✅ Push terminé: ${results.created.length} créés, ${results.updated.length} mis à jour`);
+    console.log(`✅ Push terminé: ${results.created.length} créés, ${results.updated.length} mis à jour, ${results.rejected.length} rejetés`);
     res.json(results);
 
   } catch (error) {
