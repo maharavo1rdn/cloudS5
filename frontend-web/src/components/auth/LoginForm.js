@@ -146,10 +146,9 @@ const LoginForm = () => {
 
         {/* Info test */}
         <div className="login-info">
-          <p><strong>Pour tester:</strong></p>
-          <p>Manager: <code>manager@tana.mg</code></p>
-          <p>Utilisateur: <code>n'importe quel email</code></p>
-          <p>Mot de passe: <code>n'importe lequel</code></p>
+          <p><strong>Comptes de test:</strong></p>
+          <p>Manager: <code>manager@gmail.com</code> / <code>testpass</code></p>
+          <p>Utilisateur: <code>user@gmail.com</code> / <code>password123</code></p>
         </div>
 
         {/* Lien retour */}

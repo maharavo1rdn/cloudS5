@@ -8,6 +8,12 @@ import userRoutes from './routes/users.js';
 import settingsRoutes from './routes/settings.js';
 import routeRoutes from './routes/routes.js'; // Import des nouvelles routes
 import { setupAssociations } from './models/associations.js';
+import routesAPIRoutes from './routes/routesAPI.js';
+import statsRoutes from './routes/stats.js';
+import syncRoutes from './routes/sync.js';
+import entreprisesRoutes from './routes/entreprises.js';
+import problemesRoutes from './routes/problemes.js';
+import pointsRoutes from './routes/points.js';
 
 const app = express();
 
@@ -115,6 +121,12 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/routes', routeRoutes); // Ajout des routes de gestion des points routiers
+app.use('/api/routes', routesAPIRoutes);  // Routes = travaux routiers
+app.use('/api/stats', statsRoutes);
+app.use('/api/sync', syncRoutes);
+app.use('/api/entreprises', entreprisesRoutes);
+app.use('/api/problemes', problemesRoutes);
+app.use('/api/points', pointsRoutes);
 
 // Route de test
 app.get('/', (req, res) => {

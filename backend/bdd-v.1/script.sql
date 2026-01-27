@@ -47,20 +47,18 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 -- Insérer les rôles par défaut
--- Niveaux d'accès:
---   utilisateur (level 1): consultation des routes et statistiques (utilisateur connecté)
---   manager (level 5): CRUD routes, synchronisation, gestion des signalements
--- Note: Les visiteurs non connectés ont accès à la page d'accueil sans authentification
 INSERT INTO roles (name, level) VALUES
 ('utilisateur', 1),
-('manager', 5)
+('manager', 5),
+('admin', 10)
 ON CONFLICT (name) DO NOTHING;
 
 -- Insérer des utilisateurs de test
--- Mot de passe: password123 (hashé avec bcrypt)
+-- Mot de passe pour user1: password123 (hashé)
+-- Mot de passe pour manager: testpass (hashé)
 INSERT INTO users (username, email, password, role_id) VALUES
 ('Jean Dupont', 'user@gmail.com', '$2b$10$ZtILaT9EXLGMcj0bah9O4usgz3XG.7MRBhslmBdQDJyb/UPUvSCfO', (SELECT id FROM roles WHERE name = 'utilisateur')),
-('Marie Rakoto', 'manager@gmail.com', '$2b$10$ZtILaT9EXLGMcj0bah9O4usgz3XG.7MRBhslmBdQDJyb/UPUvSCfO', (SELECT id FROM roles WHERE name = 'manager'))
+('manager', 'manager@gmail.com', '$2b$10$j6DCBuJAnByRjz0sv0YRguf0AoVZQlG.aKUSfvu2EGMyTD20gyTcS', (SELECT id FROM roles WHERE name = 'manager'))
 ON CONFLICT (email) DO NOTHING;
 
 -- Insérer les paramètres par défaut

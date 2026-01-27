@@ -1,15 +1,27 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../config/database.js';
 
-const Point = sequelize.define('Point', {
+const Route = sequelize.define('Route', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
     autoIncrement: true,
   },
+  nom: {
+    type: DataTypes.STRING(255),
+    allowNull: false,
+  },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
   probleme_id: {
     type: DataTypes.INTEGER,
-    allowNull: false,
+    allowNull: true,
+  },
+  statut: {
+    type: DataTypes.STRING(20),
+    defaultValue: 'NOUVEAU',
   },
   surface_m2: {
     type: DataTypes.DECIMAL(10, 2),
@@ -40,27 +52,16 @@ const Point = sequelize.define('Point', {
     defaultValue: 0,
     validate: {
       min: 0,
-      max: 100
-    }
+      max: 100,
+    },
   },
-  latitude: {
-    type: DataTypes.DECIMAL(10, 8),
+  created_at: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
   },
-  longitude: {
-    type: DataTypes.DECIMAL(11, 8),
-  },
-  point_statut_id: {
-    type: DataTypes.INTEGER,
-    references: {
-      model: 'point_statut',
-      key: 'id'
-    }
-  }
 }, {
-  tableName: 'points',
-  timestamps: true,
-  createdAt: 'created_at',
-  updatedAt: 'updated_at',
+  tableName: 'routes',
+  timestamps: false,
 });
 
-export default Point;
+export default Route;

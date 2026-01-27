@@ -13,7 +13,8 @@ const Probleme = sequelize.define('Probleme', {
   },
   description: {
     type: DataTypes.TEXT,
-  }
+    allowNull: true,
+  },
 }, {
   tableName: 'problemes',
   timestamps: true,
