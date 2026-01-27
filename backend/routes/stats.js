@@ -4,6 +4,8 @@ import Route from '../models/Route.js';
 import RoutePoint from '../models/RoutePoint.js';
 import Probleme from '../models/Probleme.js';
 import Entreprise from '../models/Entreprise.js';
+import Point from '../models/Point.js';
+import PointStatut from '../models/PointStatut.js';
 
 const router = Router();
 
@@ -58,14 +60,14 @@ if (!Route.associations.entreprise) {
  */
 router.get('/', async (req, res) => {
   try {
-    // Nombre total de routes
-    const totalRoutes = await Route.count();
+      // Nombre total de "projets" (approximé par le nombre distinct de problèmes)
+    const totalRoutes = await Point.count({ distinct: true, col: 'probleme_id' });
 
     // Nombre total de points GPS
-    const totalPoints = await RoutePoint.count();
+    const totalPoints = await Point.count();
 
-    // Totaux agrégés
-    const totaux = await Route.findOne({
+    // Totaux agrégés (depuis la table points)
+    const totaux = await Point.findOne({
       attributes: [
         [fn('COALESCE', fn('SUM', col('surface_m2')), 0), 'totalSurface'],
         [fn('COALESCE', fn('SUM', col('budget')), 0), 'totalBudget'],
@@ -74,27 +76,22 @@ router.get('/', async (req, res) => {
       raw: true,
     });
 
-    // Comptage par statut
-    const statutCounts = await Route.findAll({
+    // Comptage par statut (via point_statut)
+    const pointsParStatut = await Point.findAll({
       attributes: [
-        'statut',
+        'point_statut_id',
         [fn('COUNT', col('id')), 'count'],
       ],
-      group: ['statut'],
+      group: ['point_statut_id'],
       raw: true,
     });
 
-    // Formater les comptages par statut
-    const parStatut = {
-      nouveau: 0,
-      en_cours: 0,
-      termine: 0,
-    };
-
-    statutCounts.forEach((item) => {
-      const key = item.statut.toLowerCase();
+    const parStatut = {};
+    for (const item of pointsParStatut) {
+      const statut = item.point_statut_id ? await PointStatut.findByPk(item.point_statut_id) : null;
+      const key = statut ? statut.code.toLowerCase() : 'inconnu';
       parStatut[key] = parseInt(item.count, 10);
-    });
+    }
 
     res.json({
       totalRoutes,
@@ -123,11 +120,11 @@ router.get('/', async (req, res) => {
  */
 router.get('/dashboard', async (req, res) => {
   try {
-    // Statistiques générales
-    const totalRoutes = await Route.count();
-    const totalPoints = await RoutePoint.count();
+    // Statistiques générales basées sur la table points
+    const totalRoutes = await Point.count({ distinct: true, col: 'probleme_id' });
+    const totalPoints = await Point.count();
 
-    const totaux = await Route.findOne({
+    const totaux = await Point.findOne({
       attributes: [
         [fn('COALESCE', fn('SUM', col('surface_m2')), 0), 'totalSurface'],
         [fn('COALESCE', fn('SUM', col('budget')), 0), 'totalBudget'],
@@ -136,34 +133,36 @@ router.get('/dashboard', async (req, res) => {
       raw: true,
     });
 
-    // Comptage par statut
-    const statutCounts = await Route.findAll({
+    // Comptage par statut (point_statut_id)
+    const pointsParStatut = await Point.findAll({
       attributes: [
-        'statut',
+        'point_statut_id',
         [fn('COUNT', col('id')), 'count'],
       ],
-      group: ['statut'],
+      group: ['point_statut_id'],
       raw: true,
     });
 
-    const parStatut = { nouveau: 0, en_cours: 0, termine: 0 };
-    statutCounts.forEach((item) => {
-      const key = item.statut.toLowerCase();
-      parStatut[key] = parseInt(item.count, 10);
-    });
+    const pointsStatut = {};
+    for (const item of pointsParStatut) {
+      const statut = item.point_statut_id ? await PointStatut.findByPk(item.point_statut_id) : null;
+      const key = statut ? statut.code.toLowerCase() : 'inconnu';
+      pointsStatut[key] = parseInt(item.count, 10);
+    }
 
-    // Dernières routes ajoutées
-    const dernieresRoutes = await Route.findAll({
+    // Derniers points ajoutés
+    const dernieresPoints = await Point.findAll({
       order: [['created_at', 'DESC']],
       limit: 5,
-      attributes: ['id', 'nom', 'statut', 'surface_m2', 'budget', 'avancement_pourcentage', 'created_at'],
+      include: [{ model: Probleme, as: 'probleme', attributes: ['nom'] }, { model: Entreprise, as: 'entreprise', attributes: ['nom'] }],
+      attributes: ['id', 'surface_m2', 'budget', 'avancement_pourcentage', 'created_at'],
     });
 
-    // Statistiques par type de problème
-    const parProbleme = await Route.findAll({
+    // Statistiques par type de problème (depuis points)
+    const parProbleme = await Point.findAll({
       attributes: [
         'probleme_id',
-        [fn('COUNT', col('Route.id')), 'count'],
+        [fn('COUNT', col('Point.id')), 'count'],
         [fn('SUM', col('budget')), 'totalBudget'],
       ],
       include: [{
@@ -176,11 +175,11 @@ router.get('/dashboard', async (req, res) => {
       nest: true,
     });
 
-    // Statistiques par entreprise
-    const parEntreprise = await Route.findAll({
+    // Statistiques par entreprise (depuis points)
+    const parEntreprise = await Point.findAll({
       attributes: [
         'entreprise_id',
-        [fn('COUNT', col('Route.id')), 'count'],
+        [fn('COUNT', col('Point.id')), 'count'],
         [fn('SUM', col('budget')), 'totalBudget'],
       ],
       where: { entreprise_id: { [Op.not]: null } },
@@ -194,22 +193,6 @@ router.get('/dashboard', async (req, res) => {
       nest: true,
     });
 
-    // Statistiques des points par statut
-    const pointsParStatut = await RoutePoint.findAll({
-      attributes: [
-        'point_statut',
-        [fn('COUNT', col('id')), 'count'],
-      ],
-      group: ['point_statut'],
-      raw: true,
-    });
-
-    const pointsStatut = { a_traiter: 0, en_cours: 0, fini: 0 };
-    pointsParStatut.forEach((item) => {
-      const key = item.point_statut.toLowerCase();
-      pointsStatut[key] = parseInt(item.count, 10);
-    });
-
     res.json({
       resume: {
         totalRoutes,
@@ -218,9 +201,9 @@ router.get('/dashboard', async (req, res) => {
         totalBudget: parseFloat(totaux.totalBudget) || 0,
         avancementMoyen: Math.round(parseFloat(totaux.avancementMoyen) || 0),
       },
-      parStatut,
+      parStatut: pointsStatut,
       pointsStatut,
-      dernieresRoutes,
+      dernieresRoutes: dernieresPoints,
       parProbleme: parProbleme.map(p => ({
         probleme: p.probleme?.nom || 'Non défini',
         count: parseInt(p.count, 10),

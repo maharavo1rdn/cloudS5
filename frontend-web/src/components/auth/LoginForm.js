@@ -147,7 +147,7 @@ const LoginForm = () => {
         {/* Info test */}
         <div className="login-info">
           <p><strong>Comptes de test:</strong></p>
-          <p>Manager: <code>manager@gmail.com</code> / <code>password123</code></p>
+          <p>Manager: <code>manager@gmail.com</code> / <code>testpass</code></p>
           <p>Utilisateur: <code>user@gmail.com</code> / <code>password123</code></p>
         </div>
 

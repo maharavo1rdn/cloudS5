@@ -3,6 +3,8 @@ import Route from '../models/Route.js';
 import RoutePoint from '../models/RoutePoint.js';
 import Entreprise from '../models/Entreprise.js';
 import Probleme from '../models/Probleme.js';
+import Point from '../models/Point.js';
+import PointStatut from '../models/PointStatut.js';
 import authenticateToken from '../middleware/auth.js';
 
 const router = Router();
@@ -17,6 +19,8 @@ if (!Route.associations.entreprise) {
 if (!Route.associations.points) {
   Route.hasMany(RoutePoint, { foreignKey: 'route_id', as: 'points' });
 }
+
+// Support pour la table 'points' ajoutée (utilisée dans les exports/imports ci‑dessous)
 
 // Middleware pour vérifier le rôle manager (level >= 5)
 const requireManager = (req, res, next) => {
@@ -44,11 +48,12 @@ const requireManager = (req, res, next) => {
  */
 router.get('/status', authenticateToken, requireManager, async (req, res) => {
   try {
-    const totalRoutes = await Route.count();
-    const totalPoints = await RoutePoint.count();
+    // Approximation: nombre de "projets" = distinct probleme_id dans points
+    const totalRoutes = await Point.count({ distinct: true, col: 'probleme_id' });
+    const totalPoints = await Point.count();
 
-    // Dernière route modifiée
-    const lastModified = await Route.findOne({
+    // Dernier point modifié
+    const lastModified = await Point.findOne({
       order: [['created_at', 'DESC']],
       attributes: ['created_at'],
     });
@@ -78,11 +83,12 @@ router.get('/status', authenticateToken, requireManager, async (req, res) => {
  */
 router.get('/export', authenticateToken, requireManager, async (req, res) => {
   try {
-    const routes = await Route.findAll({
+      // Exporter les points et référentiels
+    const points = await Point.findAll({
       include: [
         { model: Entreprise, as: 'entreprise', attributes: ['id', 'nom', 'email', 'telephone'] },
         { model: Probleme, as: 'probleme', attributes: ['id', 'nom', 'description'] },
-        { model: RoutePoint, as: 'points', attributes: ['id', 'latitude', 'longitude', 'ordre', 'point_statut'] },
+        { model: PointStatut, as: 'statut', attributes: ['id', 'code', 'description'] },
       ],
       order: [['created_at', 'DESC']],
     });
@@ -93,12 +99,12 @@ router.get('/export', authenticateToken, requireManager, async (req, res) => {
     res.json({
       exportDate: new Date().toISOString(),
       data: {
-        routes: routes.map(r => r.toJSON()),
+        points: points.map(p => p.toJSON()),
         entreprises: entreprises.map(e => e.toJSON()),
         problemes: problemes.map(p => p.toJSON()),
       },
       counts: {
-        routes: routes.length,
+        points: points.length,
         entreprises: entreprises.length,
         problemes: problemes.length,
       },
@@ -131,49 +137,35 @@ router.get('/export', authenticateToken, requireManager, async (req, res) => {
  */
 router.post('/import', authenticateToken, requireManager, async (req, res) => {
   try {
-    const { routes } = req.body;
+    const { points } = req.body;
 
-    if (!routes || !Array.isArray(routes)) {
-      return res.status(400).json({ message: 'Liste des routes requise' });
+    if (!points || !Array.isArray(points)) {
+      return res.status(400).json({ message: 'Liste des points requise' });
     }
 
     const imported = [];
     const errors = [];
 
-    for (const data of routes) {
+    for (const data of points) {
       try {
-        // Créer la route
-        const route = await Route.create({
-          nom: data.nom,
-          description: data.description,
+        // Créer le point
+        const created = await Point.create({
           probleme_id: data.probleme_id,
-          entreprise_id: data.entreprise_id,
-          statut: data.statut || 'NOUVEAU',
           surface_m2: data.surface_m2,
           budget: data.budget,
+          entreprise_id: data.entreprise_id,
           date_detection: data.date_detection || new Date(),
           date_debut: data.date_debut,
           date_fin: data.date_fin,
           avancement_pourcentage: data.avancement_pourcentage || 0,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          point_statut_id: data.point_statut_id || null,
         });
 
-        // Créer les points si fournis
-        if (data.points && Array.isArray(data.points)) {
-          for (let i = 0; i < data.points.length; i++) {
-            const point = data.points[i];
-            await RoutePoint.create({
-              route_id: route.id,
-              latitude: point.latitude,
-              longitude: point.longitude,
-              ordre: point.ordre || i + 1,
-              point_statut: point.point_statut || 'A_TRAITER',
-            });
-          }
-        }
-
-        imported.push(route.id);
+        imported.push(created.id);
       } catch (itemError) {
-        errors.push({ data: data.nom, error: itemError.message });
+        errors.push({ data: data, error: itemError.message });
       }
     }
 
@@ -202,11 +194,11 @@ router.post('/import', authenticateToken, requireManager, async (req, res) => {
  */
 router.post('/all', authenticateToken, requireManager, async (req, res) => {
   try {
-    const routes = await Route.findAll({
+    const points = await Point.findAll({
       include: [
         { model: Entreprise, as: 'entreprise', attributes: ['id', 'nom'] },
         { model: Probleme, as: 'probleme', attributes: ['id', 'nom'] },
-        { model: RoutePoint, as: 'points' },
+        { model: PointStatut, as: 'statut' },
       ],
     });
 
@@ -214,23 +206,17 @@ router.post('/all', authenticateToken, requireManager, async (req, res) => {
       message: 'Données prêtes pour synchronisation',
       exportDate: new Date().toISOString(),
       data: {
-        count: routes.length,
-        routes: routes.map(r => ({
-          id: r.id,
-          nom: r.nom,
-          description: r.description,
-          statut: r.statut,
-          surface_m2: parseFloat(r.surface_m2) || 0,
-          budget: parseFloat(r.budget) || 0,
-          avancement_pourcentage: r.avancement_pourcentage,
-          entreprise: r.entreprise?.nom || null,
-          probleme: r.probleme?.nom || null,
-          points: r.points?.map(p => ({
-            latitude: parseFloat(p.latitude),
-            longitude: parseFloat(p.longitude),
-            ordre: p.ordre,
-            statut: p.point_statut,
-          })) || [],
+        count: points.length,
+        points: points.map(p => ({
+          id: p.id,
+          probleme: p.probleme?.nom || null,
+          entreprise: p.entreprise?.nom || null,
+          surface_m2: parseFloat(p.surface_m2) || 0,
+          budget: parseFloat(p.budget) || 0,
+          avancement_pourcentage: p.avancement_pourcentage,
+          latitude: parseFloat(p.latitude),
+          longitude: parseFloat(p.longitude),
+          statut: p.statut?.code || null,
         })),
       },
     });

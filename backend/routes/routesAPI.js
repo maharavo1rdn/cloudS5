@@ -59,17 +59,54 @@ router.get('/', async (req, res) => {
     if (probleme_id) where.probleme_id = probleme_id;
     if (entreprise_id) where.entreprise_id = entreprise_id;
 
-    const routes = await Route.findAll({
-      where,
-      include: [
-        { model: Entreprise, as: 'entreprise', attributes: ['id', 'nom', 'telephone', 'email'] },
-        { model: Probleme, as: 'probleme', attributes: ['id', 'nom', 'description'] },
-        { model: RoutePoint, as: 'points', attributes: ['id', 'latitude', 'longitude', 'ordre', 'point_statut'] }
-      ],
-      order: [['created_at', 'DESC']],
-    });
+    try {
+      // Tentative normale (si table routes existe)
+      const routes = await Route.findAll({
+        where,
+        include: [
+          { model: Entreprise, as: 'entreprise', attributes: ['id', 'nom', 'telephone', 'email'] },
+          { model: Probleme, as: 'probleme', attributes: ['id', 'nom', 'description'] },
+          { model: RoutePoint, as: 'points', attributes: ['id', 'latitude', 'longitude', 'ordre', 'point_statut'] }
+        ],
+        order: [['created_at', 'DESC']],
+      });
 
-    res.json(routes);
+      return res.json(routes);
+    } catch (innerErr) {
+      // Fallback si la DB utilise le nouveau schéma (points)
+      const points = await (await import('../models/Point.js')).default.findAll({
+        include: [
+          { model: Probleme, as: 'probleme', attributes: ['id', 'nom'] },
+          { model: Entreprise, as: 'entreprise', attributes: ['id', 'nom'] },
+          { model: (await import('../models/PointStatut.js')).default, as: 'statut', attributes: ['id', 'code'] }
+        ],
+        order: [['created_at', 'DESC']]
+      });
+
+      // Grouper les points par probleme_id + entreprise_id pour créer des "routes" pseudo
+      const groups = {};
+      for (const p of points) {
+        const key = `${p.probleme_id}_${p.entreprise_id || 'null'}`;
+        if (!groups[key]) groups[key] = { id: `g_${Object.keys(groups).length+1}`, probleme_id: p.probleme_id, entreprise_id: p.entreprise_id, points: [] };
+        groups[key].points.push({ id: p.id, latitude: p.latitude, longitude: p.longitude, ordre: groups[key].points.length + 1, point_statut: p.statut?.code || null });
+        groups[key].surface_m2 = (groups[key].surface_m2 || 0) + (parseFloat(p.surface_m2) || 0);
+        groups[key].budget = (groups[key].budget || 0) + (parseFloat(p.budget) || 0);
+        groups[key].avancement_pourcentage = Math.round(((groups[key].avancement_pourcentage || 0) + (p.avancement_pourcentage || 0)) / groups[key].points.length);
+      }
+
+      const pseudoRoutes = Object.values(groups).map(g => ({
+        id: g.id,
+        nom: g.probleme?.nom || `Projet ${g.probleme_id}`,
+        probleme_id: g.probleme_id,
+        entreprise_id: g.entreprise_id,
+        surface_m2: g.surface_m2 || 0,
+        budget: g.budget || 0,
+        avancement_pourcentage: g.avancement_pourcentage || 0,
+        points: g.points,
+      }));
+
+      return res.json(pseudoRoutes);
+    }
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
@@ -95,19 +132,41 @@ router.get('/', async (req, res) => {
  */
 router.get('/:id', async (req, res) => {
   try {
-    const route = await Route.findByPk(req.params.id, {
-      include: [
-        { model: Entreprise, as: 'entreprise' },
-        { model: Probleme, as: 'probleme' },
-        { model: RoutePoint, as: 'points', order: [['ordre', 'ASC']] }
-      ],
-    });
+    try {
+      const route = await Route.findByPk(req.params.id, {
+        include: [
+          { model: Entreprise, as: 'entreprise' },
+          { model: Probleme, as: 'probleme' },
+          { model: RoutePoint, as: 'points', order: [['ordre', 'ASC']] }
+        ],
+      });
 
-    if (!route) {
-      return res.status(404).json({ message: 'Route non trouvée' });
+      if (!route) {
+        return res.status(404).json({ message: 'Route non trouvée' });
+      }
+
+      return res.json(route);
+    } catch (innerErr) {
+      // Fallback: si pas de table routes, chercher un point et retourner comme pseudo-route
+      const Point = (await import('../models/Point.js')).default;
+      const p = await Point.findByPk(req.params.id, { include: [{ model: Probleme, as: 'probleme' }, { model: Entreprise, as: 'entreprise' }, { model: (await import('../models/PointStatut.js')).default, as: 'statut' }] });
+      if (!p) return res.status(404).json({ message: 'Route non trouvée (ni point)' });
+
+      const pseudo = {
+        id: `point_${p.id}`,
+        nom: p.probleme?.nom || `Point ${p.id}`,
+        description: '',
+        probleme_id: p.probleme_id,
+        entreprise_id: p.entreprise_id,
+        statut: p.avancement_pourcentage === 100 ? 'TERMINE' : (p.avancement_pourcentage > 0 ? 'EN_COURS' : 'NOUVEAU'),
+        surface_m2: p.surface_m2,
+        budget: p.budget,
+        avancement_pourcentage: p.avancement_pourcentage,
+        points: [{ id: p.id, latitude: p.latitude, longitude: p.longitude, ordre: 1, point_statut: p.statut?.code }]
+      };
+
+      return res.json(pseudo);
     }
-
-    res.json(route);
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
@@ -397,12 +456,20 @@ router.delete('/:id', authenticateToken, requireManager, async (req, res) => {
  */
 router.get('/:id/points', async (req, res) => {
   try {
-    const points = await RoutePoint.findAll({
-      where: { route_id: req.params.id },
-      order: [['ordre', 'ASC']]
-    });
+    try {
+      const points = await RoutePoint.findAll({
+        where: { route_id: req.params.id },
+        order: [['ordre', 'ASC']]
+      });
 
-    res.json(points);
+      return res.json(points);
+    } catch (innerErr) {
+      // Fallback: si pas de route_points, retourner le point correspondant à l'id
+      const Point = (await import('../models/Point.js')).default;
+      const p = await Point.findByPk(req.params.id, { include: [{ model: (await import('../models/PointStatut.js')).default, as: 'statut' }] });
+      if (!p) return res.status(404).json({ message: 'Aucun point trouvé' });
+      return res.json([{ id: p.id, latitude: p.latitude, longitude: p.longitude, ordre: 1, point_statut: p.statut?.code }]);
+    }
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
@@ -443,23 +510,41 @@ router.get('/:id/points', async (req, res) => {
  */
 router.patch('/:id/points/:pointId', authenticateToken, requireManager, async (req, res) => {
   try {
-    const point = await RoutePoint.findOne({
-      where: { id: req.params.pointId, route_id: req.params.id }
-    });
-    
-    if (!point) {
-      return res.status(404).json({ message: 'Point non trouvé' });
+    try {
+      const point = await RoutePoint.findOne({
+        where: { id: req.params.pointId, route_id: req.params.id }
+      });
+      
+      if (!point) {
+        return res.status(404).json({ message: 'Point non trouvé' });
+      }
+
+      const { point_statut } = req.body;
+
+      if (!['A_TRAITER', 'EN_COURS', 'FINI'].includes(point_statut)) {
+        return res.status(400).json({ message: 'Statut invalide' });
+      }
+
+      await point.update({ point_statut });
+
+      return res.json(point);
+    } catch (innerErr) {
+      // Fallback pour la table points
+      const Point = (await import('../models/Point.js')).default;
+      const PointStatut = (await import('../models/PointStatut.js')).default;
+      const p = await Point.findByPk(req.params.pointId);
+      if (!p) return res.status(404).json({ message: 'Point non trouvé' });
+
+      const { point_statut } = req.body;
+      // accepter codes A_FAIRE, EN_COURS, TERMINE ou A_TRAITER/FINI
+      const normalized = point_statut === 'A_TRAITER' ? 'A_FAIRE' : (point_statut === 'FINI' ? 'TERMINE' : point_statut);
+
+      const statut = await PointStatut.findOne({ where: { code: normalized } });
+      if (!statut) return res.status(400).json({ message: 'Statut invalide' });
+
+      await p.update({ point_statut_id: statut.id });
+      return res.json(await Point.findByPk(p.id));
     }
-
-    const { point_statut } = req.body;
-
-    if (!['A_TRAITER', 'EN_COURS', 'FINI'].includes(point_statut)) {
-      return res.status(400).json({ message: 'Statut invalide' });
-    }
-
-    await point.update({ point_statut });
-
-    res.json(point);
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
