@@ -1,0 +1,74 @@
+Table roles {
+  id serial [pk]
+  name varchar(50) [not null, unique]
+  level int [not null, default: 1]
+  createdAt timestamp [default: `CURRENT_TIMESTAMP`]
+  updatedAt timestamp [default: `CURRENT_TIMESTAMP`]
+}
+
+Table users {
+  id serial [pk]
+  username varchar(255) [not null, unique]
+  email varchar(255) [not null, unique]
+  password varchar(255) [not null]
+  role_id int [ref: > roles.id]
+  isBlocked boolean [default: false]
+  createdAt timestamp [default: `CURRENT_TIMESTAMP`]
+  updatedAt timestamp [default: `CURRENT_TIMESTAMP`]
+}
+
+Table login_attempts {
+  id serial [pk]
+  user_id int [ref: > users.id]
+  attempts int [default: 0]
+  last_attempt timestamp [default: `CURRENT_TIMESTAMP`]
+  blocked_until timestamp
+}
+
+Table settings {
+  id serial [pk]
+  code varchar(255) [not null, unique]
+  value varchar(255) [not null]
+  type varchar(50) [not null]
+  date timestamp [default: `CURRENT_TIMESTAMP`]
+}
+
+Table problemes {
+  id serial [pk]
+  nom varchar(100) [not null]
+  description text
+  created_at timestamp [default: `NOW()`]
+}
+
+Table entreprises {
+  id serial [pk]
+  nom varchar(255) [not null]
+  email varchar(255)
+  telephone varchar(20)
+  created_at timestamp [default: `NOW()`]
+}
+
+Table point_statut {
+  id serial [pk]
+  code varchar(50) [not null, unique]
+  description varchar(255)
+  niveau int [not null]
+  created_at timestamp [default: `NOW()`]
+}
+
+Table points {
+  id serial [pk]
+  probleme_id int [ref: > problemes.id]
+  surface_m2 decimal(10,2)
+  budget decimal(12,2)
+  entreprise_id int [ref: > entreprises.id]
+  date_detection date [default: `CURRENT_DATE`]
+  date_debut date
+  date_fin date
+  avancement_pourcentage int [default: 0]
+  latitude decimal(10,8)
+  longitude decimal(11,8)
+  point_statut_id int [ref: > point_statut.id]
+  created_at timestamp [default: `NOW()`]
+  updated_at timestamp [default: `NOW()`]
+}
