@@ -1,0 +1,9 @@
+# Désinstaller si nécessaire
+npm uninstall react-leaflet leaflet
+
+# Installer les versions exactes qui existent
+npm install react-leaflet@4.2.1 leaflet@1.9.4 --legacy-peer-deps
+
+
+# Installer toutes les dépendances courantes manquantes
+npm install react-router-dom lucide-react axios --legacy-peer-deps
