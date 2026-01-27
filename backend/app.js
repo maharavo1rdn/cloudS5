@@ -14,6 +14,7 @@ import syncRoutes from './routes/sync.js';
 import entreprisesRoutes from './routes/entreprises.js';
 import problemesRoutes from './routes/problemes.js';
 import pointsRoutes from './routes/points.js';
+import signalementsRoutes from './routes/signalements.js';
 
 const app = express();
 
@@ -127,6 +128,7 @@ app.use('/api/sync', syncRoutes);
 app.use('/api/entreprises', entreprisesRoutes);
 app.use('/api/problemes', problemesRoutes);
 app.use('/api/points', pointsRoutes);
+app.use('/api/signalements', signalementsRoutes);
 
 // Route de test
 app.get('/', (req, res) => {

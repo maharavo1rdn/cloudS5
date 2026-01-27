@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { 
@@ -59,7 +59,7 @@ function MapClickHandler({ setPopupInfo }) {
   return null;
 }
 
-const MapView = ({ onMarkerClick }) => {
+const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
   const [signalements, setSignalements] = useState([]);
   const [allSignalements, setAllSignalements] = useState([]);
   const [statuts, setStatuts] = useState([]);
@@ -97,15 +97,16 @@ const MapView = ({ onMarkerClick }) => {
     setError(null);
     try {
       const data = await routesAPI.getRoutesEnTravaux();
-      // Filtrer et valider les données
+      // Filtrer et valider les données (support snake_case et camelCase pour la compatibilité)
       const validData = data
         .map(s => ({
           ...s,
           latitude: parseFloat(s.latitude) || 0,
           longitude: parseFloat(s.longitude) || 0,
-          surfaceM2: parseFloat(s.surfaceM2) || 0,
-          budget: parseFloat(s.budget) || 0,
-          avancementPourcentage: parseInt(s.avancementPourcentage) || 0
+          surfaceM2: parseFloat(s.surface_m2 ?? s.surfaceM2) || 0,
+          budget: parseFloat(s.budget ?? s.budget) || 0,
+          avancementPourcentage: parseInt(s.avancement_pourcentage ?? s.avancementPourcentage ?? 0, 10) || 0,
+          dateDetection: s.date_detection ?? s.dateDetection ?? null,
         }))
         .filter(s => isValidCoords(s.latitude, s.longitude));
       
@@ -228,6 +229,15 @@ const MapView = ({ onMarkerClick }) => {
     setPopupInfo(signalement);
     if (onMarkerClick) {
       onMarkerClick(signalement);
+    }
+
+    // Also forward coords to onMapClick so clicking a marker can prefill create point
+    if (onMapClick && signalement) {
+      const lat = parseFloat(signalement.latitude ?? signalement.lat ?? signalement.latitude);
+      const lng = parseFloat(signalement.longitude ?? signalement.lon ?? signalement.longitude ?? signalement.lng);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        try { onMapClick({ lat, lng }); } catch (err) { console.error('Erreur forwarding marker coords:', err); }
+      }
     }
   };
 
@@ -375,9 +385,10 @@ const MapView = ({ onMarkerClick }) => {
               >
                 {/* Tooltip au survol */}
                 {hoveredMarker === signalement.id && (
-                  <Popup
-                    position={[lat, lng]}
-                    closeButton={false}
+                  <Tooltip
+                    direction="top"
+                    offset={[0, -20]}
+                    permanent={false}
                     className="marker-tooltip"
                   >
                     <div className="tooltip-content">
@@ -390,10 +401,10 @@ const MapView = ({ onMarkerClick }) => {
                           <span>{getStatusLabel(signalement.statut?.code || signalement.statut)}</span>
                         </span>
                         <span className="tooltip-date">
-                          {routesAPI.formatDate(signalement.dateDetection)}
+                          {routesAPI.formatDate(signalement.dateDetection || signalement.date_detection)}
                         </span>
                       </div>
-                      <p className="tooltip-description">{signalement.probleme || signalement.description}</p>
+                      <p className="tooltip-description">{signalement.probleme?.nom || signalement.probleme || signalement.description}</p>
                       <p className="tooltip-address">
                         {formatCoordonnees(lat, lng)}
                       </p>
@@ -405,16 +416,29 @@ const MapView = ({ onMarkerClick }) => {
                         <span>Avancement: {signalement.avancementPourcentage || 0}%</span>
                         {signalement.entreprise && (
                           <span className="tooltip-entreprise">
-                            🏗️ {signalement.entreprise}
+                            🏗️ {typeof signalement.entreprise === 'object' ? signalement.entreprise.nom : signalement.entreprise}
                           </span>
                         )}
                       </div>
                     </div>
-                  </Popup>
+                  </Tooltip>
                 )}
               </Marker>
             );
           })}
+
+          {/* Marqueur de prévisualisation si on crée un point */}
+          {previewCoords && isValidCoords(previewCoords.lat, previewCoords.lng) && (
+            <Marker
+              position={[parseFloat(previewCoords.lat), parseFloat(previewCoords.lng)]}
+              icon={L.divIcon({
+                html: '<div class="preview-marker"></div>',
+                className: 'preview-marker-icon',
+                iconSize: [20, 20],
+                iconAnchor: [10, 20]
+              })}
+            />
+          )}
 
           {/* Popup détaillé au clic */}
           {popupInfo && (() => {
@@ -459,7 +483,7 @@ const MapView = ({ onMarkerClick }) => {
                     </div>
                     <div className="popup-info-item full-width">
                       <span className="label">Entreprise</span>
-                      <span className="value">{popupInfo.entreprise || popupInfo.entreprise?.nom || 'Non assignée'}</span>
+                      <span className="value">{typeof popupInfo.entreprise === 'object' ? popupInfo.entreprise.nom : (popupInfo.entreprise || 'Non assignée')}</span>
                     </div>
                     {popupInfo.dateDebut && (
                       <div className="popup-info-item">
@@ -479,7 +503,7 @@ const MapView = ({ onMarkerClick }) => {
             );
           })()}
 
-          <MapClickHandler setPopupInfo={setPopupInfo} />
+          <MapClickHandler setPopupInfo={setPopupInfo} onMapClick={onMapClick} />
         </MapContainer>
 
         {/* Légende */}

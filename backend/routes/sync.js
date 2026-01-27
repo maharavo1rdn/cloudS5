@@ -116,6 +116,47 @@ router.get('/export', authenticateToken, requireManager, async (req, res) => {
 
 /**
  * @swagger
+ * /api/sync/firebase:
+ *   post:
+ *     summary: Synchroniser les données vers Firebase (stub)
+ *     tags: [Sync]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Synchronisation simulée réussie
+ */
+router.post('/firebase', authenticateToken, requireManager, async (req, res) => {
+  try {
+    const points = await Point.findAll({ include: [{ model: Probleme, as: 'probleme' }, { model: Entreprise, as: 'entreprise' }, { model: PointStatut, as: 'statut' }] });
+    return res.json({ message: 'Synchronisation simulée', exported: points.length, data: points.map(p => p.toJSON()) });
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/sync/firebase/fetch:
+ *   get:
+ *     summary: Récupérer les données depuis Firebase (stub)
+ *     tags: [Sync]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Récupération simulée réussie
+ */
+router.get('/firebase/fetch', authenticateToken, requireManager, async (req, res) => {
+  try {
+    return res.json({ message: 'Récupération simulée', imported: 0, data: [] });
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+  }
+});
+
+/**
+ * @swagger
  * /api/sync/import:
  *   post:
  *     summary: Importer des routes depuis une source externe

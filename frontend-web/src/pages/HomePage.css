@@ -46,19 +46,32 @@
   transition: all 0.2s;
 }
 
-.btn-sync:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-}
+  .btn-add-point {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: white;
+    cursor: pointer;
+  }
 
-.btn-sync:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
+  .create-point {
+    margin-top: 10px;
+    padding: 12px;
+    background: #fff;
+    border: 1px solid #e6eef8;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(30,41,59,0.04);
+  }
 
-.spin {
-  animation: spin 1s linear infinite;
-}
+  .create-point .form-row { display:flex; gap:8px; margin-bottom:8px; }
+  .create-point input, .create-point select { padding:8px; border-radius:6px; border:1px solid #e2e8f0; }
+  .create-point .form-actions { display:flex; gap:8px; }
+  .create-point .btn-cancel { background:#f3f4f6; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; }
+  .create-point button { padding:8px 12px; border-radius:6px; cursor:pointer; background:#2563eb; color:white; border:none; }
 
 @keyframes spin {
   from { transform: rotate(0deg); }
