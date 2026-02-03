@@ -16,17 +16,23 @@ async function login() {
   return data.token;
 }
 
-async function updateSignalement(token, id, newStatus) {
+async function updateSignalement(token, id, newStatus, customDate = null) {
+  const body = {
+    statut: newStatus,
+    commentaire: `Test de changement de statut vers ${newStatus}`
+  };
+  
+  if (customDate) {
+    body.date_modification = customDate;
+  }
+  
   const response = await fetch(`${API_URL}/signalements/${id}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     },
-    body: JSON.stringify({
-      statut: newStatus,
-      commentaire: `Test de changement de statut vers ${newStatus}`
-    })
+    body: JSON.stringify(body)
   });
   
   const data = await response.json();
@@ -58,9 +64,10 @@ async function test() {
     console.log(`Avancement: ${signalement.avancement_pourcentage}%`);
     console.log(`Historiques: ${signalement.historiques?.length || 0}`);
     
-    console.log('\n🔄 Mise à jour du statut vers EN_COURS...');
-    await updateSignalement(token, signalementId, 'EN_COURS');
-    console.log('✅ Mis à jour');
+    console.log('\n🔄 Mise à jour du statut vers EN_COURS avec date personnalisée...');
+    const customDate = '2026-01-15T10:30:00';
+    await updateSignalement(token, signalementId, 'EN_COURS', customDate);
+    console.log(`✅ Mis à jour avec date: ${customDate}`);
     
     console.log('\n📊 Vérification de l\'historique...');
     signalement = await getSignalementWithHistory(token, signalementId);
