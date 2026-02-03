@@ -258,6 +258,12 @@
       :routes="routes"
       @close="showStatsModal = false"
     />
+
+    <PhotoGalleryModal
+      :is-open="showPhotoGallery"
+      :images="selectedRouteImages"
+      @close="showPhotoGallery = false"
+    />
   </ion-page>
 </template>
 
@@ -288,8 +294,9 @@ import EditRouteModal from '../components/modals/EditRouteModal.vue';
 import ResetAttemptsModal from '../components/modals/ResetAttemptsModal.vue';
 import BlockedUsersModal from '../components/modals/BlockedUsersModal.vue';
 import StatisticsModal from '../components/modals/StatisticsModal.vue';
+import PhotoGalleryModal from '../components/modals/PhotoGalleryModal.vue';
 import ConnectivityBanner from '../components/ConnectivityBanner.vue';
-import { Route } from '../types/route.types';
+import { Route, PointImage } from '../types/route.types';
 
 const router = useRouter();
 const mapContainer = ref<HTMLElement | null>(null);
@@ -300,7 +307,9 @@ const showEditModal = ref(false);
 const showResetModal = ref(false);
 const showBlockedModal = ref(false);
 const showStatsModal = ref(false);
+const showPhotoGallery = ref(false);
 const selectedRoute = ref<Route | null>(null);
+const selectedRouteImages = ref<PointImage[]>([]);
 const currentLocation = ref<{ lat: number; lng: number } | null>(null);
 const clickedLocation = ref<{ lat: number; lng: number } | null>(null);
 const routes = ref<Route[]>([]);
@@ -609,6 +618,18 @@ const displayRouteMarkers = () => {
             </div>
           ` : ''}
         </div>
+        ${route.images && route.images.length > 0 ? `
+          <div class="popup-footer">
+            <button class="popup-photos-btn" data-route-id="${route.id}">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+              Voir photos (${route.images.length})
+            </button>
+          </div>
+        ` : ''}
         ${isManager.value ? `
           <div class="popup-footer">
             <button class="popup-edit-btn" data-route-id="${route.id}">
@@ -628,12 +649,19 @@ const displayRouteMarkers = () => {
       className: 'custom-popup'
     });
     
-    // Ajouter un event listener pour le bouton d'édition
+    // Ajouter un event listener pour les boutons
     marker.on('popupopen', () => {
-      const editBtn = document.querySelector(`[data-route-id="${route.id}"]`);
+      const editBtn = document.querySelector(`[data-route-id="${route.id}"].popup-edit-btn`);
       if (editBtn) {
         editBtn.addEventListener('click', () => {
           openEditModal(route);
+        });
+      }
+
+      const photosBtn = document.querySelector(`[data-route-id="${route.id}"].popup-photos-btn`);
+      if (photosBtn) {
+        photosBtn.addEventListener('click', () => {
+          openPhotoGallery(route);
         });
       }
     });
@@ -688,6 +716,11 @@ const selectRoute = (route: Route) => {
 const openEditModal = (route: Route) => {
   selectedRoute.value = route;
   showEditModal.value = true;
+};
+
+const openPhotoGallery = (route: Route) => {
+  selectedRouteImages.value = route.images || [];
+  showPhotoGallery.value = true;
 };
 
 const closeEditModal = () => {
@@ -1463,10 +1496,12 @@ ion-fab-button:hover {
   padding: 12px 16px;
   border-top: 1px solid #e2e8f0;
   display: flex;
+  gap: 8px;
   justify-content: flex-end;
 }
 
-:deep(.popup-edit-btn) {
+:deep(.popup-edit-btn),
+:deep(.popup-photos-btn) {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1481,12 +1516,23 @@ ion-fab-button:hover {
   transition: all 0.2s;
 }
 
+:deep(.popup-photos-btn) {
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
 :deep(.popup-edit-btn:hover) {
   background: #0f172a;
   color: white;
 }
 
-:deep(.popup-edit-btn svg) {
+:deep(.popup-photos-btn:hover) {
+  background: #3b82f6;
+  color: white;
+}
+
+:deep(.popup-edit-btn svg),
+:deep(.popup-photos-btn svg) {
   width: 16px;
   height: 16px;
 }

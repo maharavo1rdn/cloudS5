@@ -125,3 +125,19 @@ INSERT INTO points (probleme_id, surface_m2, budget, entreprise_id, date_detecti
 (1, 2.20, 310000, NULL, '2024-01-23', 0, -18.9065, 47.5321, 1), -- Ambatonakanga
 (7, 1.80, 125000, NULL, '2024-01-24', 0, -18.9098, 47.5194, 1), -- Besarety
 (4, 7.00, 185000, NULL, '2024-01-25', 0, -18.9167, 47.5118, 1); -- Ambanidia
+
+-- Exemples d'images pour quelques points
+INSERT INTO points_images (point_id, image_url, created_at) VALUES
+(1, 'https://via.placeholder.com/800x600.png?text=Point+1-1', NOW()),
+(4, 'https://via.placeholder.com/800x600.png?text=Point+4-1', NOW()),
+(6, 'https://via.placeholder.com/800x600.png?text=Point+6-1', NOW()),
+(12, 'https://via.placeholder.com/800x600.png?text=Point+12-1', NOW());
+
+-- Exemples d'historique (points_histo) - entrées montrant progression
+INSERT INTO points_histo (point_id, point_statut_id, avancement_pourcentage, date) VALUES
+(1, 1, 0, NOW() - INTERVAL '10 days'), -- initial A_FAIRE
+(1, 2, 50, NOW() - INTERVAL '5 days'), -- passage EN_COURS
+(1, 2, 50, NOW() - INTERVAL '2 days'),
+(4, 2, 50, NOW() - INTERVAL '7 days'),
+(6, 3, 100, NOW() - INTERVAL '1 day'), -- terminé
+(12, 1, 0, NOW() - INTERVAL '3 days');

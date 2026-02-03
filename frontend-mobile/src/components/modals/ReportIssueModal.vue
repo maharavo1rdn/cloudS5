@@ -201,6 +201,43 @@
           </div>
         </div>
 
+        <!-- Photos -->
+        <div class="input-wrapper">
+          <label class="input-label">
+            <ion-icon :icon="cameraOutline" class="label-icon"></ion-icon>
+            <span>Photos ({{ selectedPhotos.length }}/5)</span>
+          </label>
+          <div class="photos-container">
+            <div class="photo-grid">
+              <div 
+                v-for="(photo, index) in selectedPhotos" 
+                :key="index"
+                class="photo-item"
+              >
+                <img :src="photo.webPath || photo.dataUrl" alt="Photo" />
+                <ion-button 
+                  fill="clear" 
+                  size="small" 
+                  class="remove-photo-btn"
+                  @click="removePhoto(index)"
+                >
+                  <ion-icon :icon="closeCircle" slot="icon-only"></ion-icon>
+                </ion-button>
+              </div>
+              <button 
+                v-if="selectedPhotos.length < 5"
+                type="button"
+                class="add-photo-btn"
+                @click="addPhoto"
+                :disabled="loading"
+              >
+                <ion-icon :icon="add"></ion-icon>
+                <span>Ajouter une photo</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Localisation -->
         <div class="location-info">
           <div class="location-header">
@@ -266,6 +303,7 @@ import {
   IonSelectOption,
   IonSpinner,
   IonIcon,
+  actionSheetController
 } from '@ionic/vue';
 import {
   close,
@@ -281,10 +319,23 @@ import {
   cashOutline,
   businessOutline,
   calendarOutline,
+  cameraOutline,
+  add,
+  closeCircle,
+  camera,
+  images
 } from 'ionicons/icons';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import routeService from '../../services/routeService';
 import authService from '../../services/authService';
+import imageService from '../../services/imageService';
 import { Probleme, PointStatut, Entreprise } from '../../types/route.types';
+
+interface PhotoData {
+  dataUrl: string;
+  webPath?: string;
+  blob?: Blob;
+}
 
 interface Props {
   isOpen: boolean;
@@ -295,6 +346,7 @@ const props = defineProps<Props>();
 const emit = defineEmits(['close', 'success']);
 
 const isManager = ref(false);
+const selectedPhotos = ref<PhotoData[]>([]);
 
 const form = ref<{
   nom: string;
@@ -433,6 +485,17 @@ const handleSubmit = async () => {
       throw new Error('Utilisateur non authentifié');
     }
 
+    // Convertir les photos en Blobs
+    const photoBlobs: Blob[] = [];
+    for (const photo of selectedPhotos.value) {
+      if (photo.blob) {
+        photoBlobs.push(photo.blob);
+      } else if (photo.dataUrl) {
+        const blob = imageService.dataUrlToBlob(photo.dataUrl);
+        photoBlobs.push(blob);
+      }
+    }
+
     await routeService.createRoute(
       {
         nom: form.value.nom,
@@ -446,6 +509,7 @@ const handleSubmit = async () => {
         entreprise_id: form.value.entreprise_id || undefined,
         date_debut: form.value.date_debut ? new Date(form.value.date_debut) : undefined,
         date_fin: form.value.date_fin ? new Date(form.value.date_fin) : undefined,
+        images: photoBlobs,
       },
       userData.localId
     );
@@ -466,6 +530,64 @@ const handleSubmit = async () => {
   }
 };
 
+const addPhoto = async () => {
+  try {
+    const actionSheet = await actionSheetController.create({
+      header: 'Ajouter une photo',
+      buttons: [
+        {
+          text: 'Prendre une photo',
+          icon: camera,
+          handler: () => {
+            capturePhoto(CameraSource.Camera);
+          },
+        },
+        {
+          text: 'Choisir depuis la galerie',
+          icon: images,
+          handler: () => {
+            capturePhoto(CameraSource.Photos);
+          },
+        },
+        {
+          text: 'Annuler',
+          icon: close,
+          role: 'cancel',
+        },
+      ],
+    });
+    await actionSheet.present();
+  } catch (error) {
+    console.error('Erreur ouverture action sheet:', error);
+  }
+};
+
+const capturePhoto = async (source: CameraSource) => {
+  try {
+    const image = await Camera.getPhoto({
+      quality: 80,
+      allowEditing: false,
+      resultType: CameraResultType.DataUrl,
+      source: source,
+    });
+
+    if (image.dataUrl) {
+      const blob = imageService.dataUrlToBlob(image.dataUrl);
+      selectedPhotos.value.push({
+        dataUrl: image.dataUrl,
+        webPath: image.webPath,
+        blob: blob,
+      });
+    }
+  } catch (error) {
+    console.error('Erreur capture photo:', error);
+  }
+};
+
+const removePhoto = (index: number) => {
+  selectedPhotos.value.splice(index, 1);
+};
+
 const closeModal = () => {
   form.value = {
     nom: '',
@@ -478,6 +600,7 @@ const closeModal = () => {
     date_debut: undefined,
     date_fin: undefined,
   };
+  selectedPhotos.value = [];
   error.value = '';
   success.value = '';
   nomFocused.value = false;
@@ -780,6 +903,81 @@ ion-content {
   height: 20px;
 }
 
+.photos-container {
+  margin-top: 8px;
+}
+
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 12px;
+}
+
+.photo-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #e2e8f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.photo-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.remove-photo-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  --background: rgba(239, 68, 68, 0.9);
+  --color: white;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  margin: 0;
+  --padding-start: 0;
+  --padding-end: 0;
+}
+
+.remove-photo-btn ion-icon {
+  font-size: 20px;
+}
+
+.add-photo-btn {
+  aspect-ratio: 1;
+  border-radius: 12px;
+  border: 2px dashed #cbd5e1;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.add-photo-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #475569;
+}
+
+.add-photo-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.add-photo-btn ion-icon {
+  font-size: 24px;
+}
+
 @media (max-width: 640px) {
   .modal-header {
     padding: 12px 0;
@@ -802,6 +1000,10 @@ ion-content {
 
   .header-subtitle {
     font-size: 12px;
+  }
+  
+  .photo-grid {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
