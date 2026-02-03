@@ -81,7 +81,7 @@
               @ionFocus="statutFocused = true"
               @ionBlur="statutFocused = false"
             >
-              <ion-select-option value="NOUVEAU">Nouveau</ion-select-option>
+              <ion-select-option value="A_FAIRE">Nouveau</ion-select-option>
               <ion-select-option value="EN_COURS">En cours</ion-select-option>
               <ion-select-option value="TERMINE">Terminé</ion-select-option>
             </ion-select>
@@ -202,28 +202,6 @@
           </div>
         </div>
 
-        <!-- Avancement (Manager only) -->
-        <div v-if="isManager" class="input-wrapper">
-          <label class="input-label">
-            <ion-icon :icon="statsChart" class="label-icon"></ion-icon>
-            <span>Avancement (%)</span>
-          </label>
-          <div class="input-container" :class="{ focused: avancementFocused }">
-            <ion-input
-              v-model.number="form.avancement_pourcentage"
-              type="number"
-              min="0"
-              max="100"
-              :disabled="loading"
-              placeholder="0"
-              @ionFocus="avancementFocused = true"
-              @ionBlur="avancementFocused = false"
-            ></ion-input>
-          </div>
-          <div class="progress-bar">
-            <div class="progress-fill" :style="{ width: form.avancement_pourcentage + '%' }"></div>
-          </div>
-        </div>
 
 
 
@@ -316,7 +294,6 @@ const form = ref<{
   budget: number | undefined;
   date_debut: string;
   date_fin: string;
-  avancement_pourcentage: number;
   entreprise_id?: string;
 }>({
   nom: '',
@@ -327,7 +304,6 @@ const form = ref<{
   budget: undefined,
   date_debut: '',
   date_fin: '',
-  avancement_pourcentage: 0,
   entreprise_id: undefined,
 });
 
@@ -346,7 +322,6 @@ const surfaceFocused = ref(false);
 const budgetFocused = ref(false);
 const dateDebutFocused = ref(false);
 const dateFinFocused = ref(false);
-const avancementFocused = ref(false);
 
 // Définir les statuts avec leurs labels
 const statutsDisponibles = [
@@ -392,7 +367,6 @@ watch(() => props.route, (newRoute) => {
       budget: newRoute.budget,
       date_debut: newRoute.date_debut ? newRoute.date_debut.toISOString().split('T')[0] : '',
       date_fin: newRoute.date_fin ? newRoute.date_fin.toISOString().split('T')[0] : '',
-      avancement_pourcentage: newRoute.avancement_pourcentage || 0,
     };
   }
 }, { immediate: true });
@@ -424,7 +398,6 @@ watch(() => props.route, (newRoute) => {
       budget: newRoute.budget,
       date_debut: newRoute.date_debut ? newRoute.date_debut.toISOString().split('T')[0] : '',
       date_fin: newRoute.date_fin ? newRoute.date_fin.toISOString().split('T')[0] : '',
-      avancement_pourcentage: newRoute.avancement_pourcentage || 0,
       entreprise_id: newRoute.entreprise_id || undefined,
     };
   }
@@ -472,7 +445,6 @@ const handleSubmit = async () => {
       entreprise_id: form.value.entreprise_id || undefined,
       date_debut: form.value.date_debut ? new Date(form.value.date_debut) : undefined,
       date_fin: form.value.date_fin ? new Date(form.value.date_fin) : undefined,
-      avancement_pourcentage: form.value.avancement_pourcentage,
     });
 
     success.value = 'Signalement modifié avec succès';
@@ -501,7 +473,6 @@ const closeModal = () => {
   budgetFocused.value = false;
   dateDebutFocused.value = false;
   dateFinFocused.value = false;
-  avancementFocused.value = false;
   emit('close');
 };
 

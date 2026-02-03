@@ -11,7 +11,6 @@ import syncRoutes from './routes/sync.js'; // Import des routes de synchronisati
 import { setupAssociations } from './models/associations.js';
 import routesAPIRoutes from './routes/routesAPI.js';
 import statsRoutes from './routes/stats.js';
-import syncRoutes from './routes/sync.js';
 import entreprisesRoutes from './routes/entreprises.js';
 import problemesRoutes from './routes/problemes.js';
 import pointsRoutes from './routes/points.js';
@@ -82,7 +81,9 @@ const corsOptions = {
       'http://localhost:5173',
       'http://localhost:8088',
       'http://localhost:3000',
-      'http://localhost:3001'
+      'http://localhost:3001',
+      'http://localhost:8100',
+      '*'
     ];
     
     // En production, ajoutez votre domaine
@@ -146,13 +147,19 @@ app.get('/', (req, res) => {
   });
 });
 
+// Health endpoint used by mobile app to check connectivity (returns 200)
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, timestamp: new Date().toISOString() });
+});
+
 // Synchroniser la base de données et démarrer le serveur
 const PORT = process.env.PORT || 3000;
 
-sequelize.sync()
+// En DEV, nous pouvons appliquer les modifications de schéma automatiquement pour faciliter le développement
+sequelize.sync({ alter: true })
   .then(() => {
     setupAssociations();
-    console.log('Base de données synchronisée');
+    console.log('Base de données synchronisée (alter)');
     app.listen(PORT, () => {
       console.log(`Serveur démarré sur le port ${PORT}`);
       console.log(`Documentation Swagger: http://localhost:${PORT}/api-docs`);

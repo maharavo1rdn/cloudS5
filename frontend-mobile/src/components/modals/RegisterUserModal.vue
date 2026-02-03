@@ -203,7 +203,7 @@ const handleRegister = async () => {
   success.value = '';
 
   try {
-    isOnline.value = await authService.checkFirestoreConnectivity();
+    isOnline.value = await authService.checkConnectivity();
 
     if (!isOnline.value) {
       throw new Error('Connexion internet requise pour créer un compte. Veuillez vérifier votre connexion et réessayer.');

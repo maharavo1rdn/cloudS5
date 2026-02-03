@@ -83,7 +83,7 @@
               @ionBlur="statutFocused = false"
             >
               <!-- Options des statuts -->
-              <ion-select-option value="NOUVEAU">Nouveau</ion-select-option>
+              <ion-select-option value="A_FAIRE">Nouveau</ion-select-option>
               <ion-select-option value="EN_COURS">En cours</ion-select-option>
               <ion-select-option value="TERMINE">Terminé</ion-select-option>
             </ion-select>
