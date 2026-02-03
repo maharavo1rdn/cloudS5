@@ -15,6 +15,13 @@ const getHeaders = () => ({
 // Fonction générique pour les appels API
 const apiCall = async (endpoint, options = {}) => {
   try {
+    console.debug('[apiCall] Request:', {
+      url: `${API_BASE_URL}${endpoint}`,
+      method: options.method || 'GET',
+      token: getToken(),
+      body: options.body ? JSON.parse(options.body) : undefined
+    });
+
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
       headers: {
@@ -23,7 +30,19 @@ const apiCall = async (endpoint, options = {}) => {
       }
     });
     
-    const data = await response.json();
+    const text = await response.text();
+    let data;
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch (e) {
+      data = { raw: text };
+    }
+
+    console.debug('[apiCall] Response:', {
+      url: `${API_BASE_URL}${endpoint}`,
+      status: response.status,
+      data
+    });
     
     if (!response.ok) {
       throw new Error(data.message || 'Erreur serveur');
@@ -31,7 +50,7 @@ const apiCall = async (endpoint, options = {}) => {
     
     return data;
   } catch (error) {
-    console.error('API Error:', error);
+    console.error('[apiCall] API Error:', error);
     throw error;
   }
 };

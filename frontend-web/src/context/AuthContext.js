@@ -20,15 +20,22 @@ export const AuthProvider = ({ children }) => {
     const checkAuth = async () => {
       if (authAPI.isAuthenticated()) {
         try {
-          // En mode mock, on récupère depuis localStorage
-          const savedUser = localStorage.getItem('user');
-          if (savedUser) {
-            setUser(JSON.parse(savedUser));
+          // Récupérer l'utilisateur depuis l'API (vérifie le token)
+          const data = await authAPI.getCurrentUser();
+          if (data && data.user) {
+            setUser(data.user);
+            localStorage.setItem('user', JSON.stringify(data.user));
           }
         } catch (error) {
           console.error('Erreur lors de la vérification auth:', error);
           authAPI.logout();
+          localStorage.removeItem('user');
+          setUser(null);
         }
+      } else {
+        // pas de token : ne pas utiliser les données sauvées (évite d'afficher un utilisateur obsolète)
+        localStorage.removeItem('user');
+        setUser(null);
       }
       setLoading(false);
     };
@@ -36,59 +43,50 @@ export const AuthProvider = ({ children }) => {
     checkAuth();
   }, []);
 
-  // Login
+  // Login (utilise l'API plutôt que le mock)
   const login = async (email, password) => {
     try {
-      // En mode mock pour le développement
-      // Simulation de différents profils
-      let mockUser;
-      
-      if (email === 'manager@tana.mg') {
-        mockUser = {
-          id: 1,
-          email: 'manager@tana.mg',
-          nom: 'Rakoto',
-          prenom: 'Jean',
-          role: 'manager'
-        };
-      } else {
-        mockUser = {
-          id: 2,
-          email: email,
-          nom: 'Utilisateur',
-          prenom: 'Test',
-          role: 'utilisateur'
-        };
-      }
+      console.debug('[Auth] login request for', email);
+      const data = await authAPI.login(email, password);
+      console.debug('[Auth] login response:', data);
+      // authAPI.login stocke le token en localStorage
+      const userFromResponse = data.user || (await authAPI.getCurrentUser()).user;
+      console.debug('[Auth] fetched user:', userFromResponse);
+      const normalizedUser = {
+        ...userFromResponse,
+        role: typeof userFromResponse.role === 'string' ? { name: userFromResponse.role } : userFromResponse.role
+      };
 
-      // Simuler un token
-      localStorage.setItem('token', 'mock-jwt-token-' + Date.now());
-      localStorage.setItem('user', JSON.stringify(mockUser));
-      setUser(mockUser);
+      localStorage.setItem('user', JSON.stringify(normalizedUser));
+      setUser(normalizedUser);
 
-      return { success: true, user: mockUser };
+      return { success: true, user: normalizedUser };
     } catch (error) {
+      console.error('[Auth] login error:', error);
+      // Nettoyer tout état local si connexion échoue
+      try { localStorage.removeItem('token'); } catch (e) {}
+      try { localStorage.removeItem('user'); } catch (e) {}
+      setUser(null);
       throw error;
     }
   };
 
-  // Register
+  // Register (crée l'utilisateur puis se connecte)
   const register = async (userData) => {
     try {
-      // Mode mock
-      const newUser = {
-        id: Date.now(),
-        email: userData.email,
-        nom: userData.nom,
-        prenom: userData.prenom,
-        role: 'utilisateur'
+      await authAPI.register(userData);
+      // Auto-login après inscription
+      const loginResult = await authAPI.login(userData.email, userData.password);
+      const userFromResponse = loginResult.user || (await authAPI.getCurrentUser()).user;
+      const normalizedUser = {
+        ...userFromResponse,
+        role: typeof userFromResponse.role === 'string' ? { name: userFromResponse.role } : userFromResponse.role
       };
 
-      localStorage.setItem('token', 'mock-jwt-token-' + Date.now());
-      localStorage.setItem('user', JSON.stringify(newUser));
-      setUser(newUser);
+      localStorage.setItem('user', JSON.stringify(normalizedUser));
+      setUser(normalizedUser);
 
-      return { success: true, user: newUser };
+      return { success: true, user: normalizedUser };
     } catch (error) {
       throw error;
     }
@@ -103,12 +101,13 @@ export const AuthProvider = ({ children }) => {
 
   // Vérifier si l'utilisateur est manager
   const isManager = () => {
-    return user?.role === 'manager';
+    const role = user?.role;
+    return role === 'manager' || role?.name === 'manager';
   };
 
   // Vérifier si l'utilisateur est connecté
   const isAuthenticated = () => {
-    return !!user;
+    return !!user && authAPI.isAuthenticated();
   };
 
   const value = {
