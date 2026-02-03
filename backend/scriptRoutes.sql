@@ -111,3 +111,71 @@ INSERT INTO points (probleme_id, surface_m2, budget, entreprise_id, date_detecti
 (1, 2.20, 310000, NULL, '2024-01-23', 0, -18.9065, 47.5321, 1), -- Ambatonakanga
 (7, 1.80, 125000, NULL, '2024-01-24', 0, -18.9098, 47.5194, 1), -- Besarety
 (4, 7.00, 185000, NULL, '2024-01-25', 0, -18.9167, 47.5118, 1); -- Ambanidia
+
+-- Table des signalements (équivalent aux points pour le web)
+CREATE TABLE IF NOT EXISTS signalements (
+    id SERIAL PRIMARY KEY,
+    nom VARCHAR(255) NOT NULL,
+    description TEXT,
+    latitude DECIMAL(10,8) NOT NULL,
+    longitude DECIMAL(11,8) NOT NULL,
+    probleme_id INTEGER REFERENCES problemes(id),
+    statut VARCHAR(20) DEFAULT 'NOUVEAU',
+    surface_m2 DECIMAL(10,2),
+    budget DECIMAL(12,2),
+    entreprise_id INTEGER REFERENCES entreprises(id),
+    date_detection DATE DEFAULT CURRENT_DATE,
+    date_debut DATE,
+    date_fin DATE,
+    avancement_pourcentage INTEGER DEFAULT 0,
+    synced BOOLEAN DEFAULT FALSE,
+    firebase_id VARCHAR(255),
+    created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP DEFAULT NOW() NOT NULL,
+    CHECK (statut IN ('NOUVEAU', 'EN_COURS', 'TERMINE'))
+);
+
+-- Insérer les signalements correspondant aux points (même données)
+INSERT INTO signalements (nom, description, latitude, longitude, probleme_id, statut, surface_m2, budget, entreprise_id, date_detection, date_debut, date_fin, avancement_pourcentage) VALUES
+-- Analakely (Centre-ville)
+('Nid-de-poule', 'Dépression dans la chaussée nécessitant réparation', -18.9087, 47.5256, 1, 'NOUVEAU', 3.50, 450000, 1, '2024-01-15', NULL, NULL, 0),
+('Éclairage défectueux', 'Lampadaire ou système d''éclairage HS', -18.9072, 47.5271, 2, 'NOUVEAU', NULL, 280000, 2, '2024-01-16', NULL, NULL, 0),
+('Déchet encombrant', 'Objet volumineux sur la voie publique', -18.9103, 47.5248, 4, 'EN_COURS', 4.20, 150000, 3, '2024-01-10', '2024-01-17', NULL, 65),
+
+-- Isoraka
+('Végétation invasive', 'Végétation gênant la circulation ou la visibilité', -18.9145, 47.5289, 5, 'EN_COURS', 8.00, 320000, 4, '2024-01-12', '2024-01-18', NULL, 80),
+('Signalisation endommagée', 'Panneau de signalisation abîmé ou manquant', -18.9132, 47.5301, 3, 'NOUVEAU', NULL, 180000, NULL, '2024-01-14', NULL, NULL, 0),
+('Fuite eau', 'Fuite d''eau sur la voie publique', -18.9158, 47.5295, 6, 'TERMINE', 2.50, 550000, 5, '2023-12-20', '2024-01-05', '2024-01-15', 100),
+
+-- Ambohijatovo
+('Nid-de-poule', 'Dépression dans la chaussée nécessitant réparation', -18.9120, 47.5223, 1, 'TERMINE', 5.20, 620000, 6, '2023-12-28', '2024-01-10', '2024-01-22', 100),
+('Caniveau bouché', 'Caniveau obstrué par des déchets', -18.9115, 47.5218, 7, 'EN_COURS', 3.00, 190000, 5, '2024-01-05', '2024-01-12', NULL, 45),
+
+-- Antaninarenina
+('Éclairage défectueux', 'Lampadaire ou système d''éclairage HS', -18.9182, 47.5189, 2, 'EN_COURS', NULL, 210000, 2, '2024-01-08', '2024-01-15', NULL, 70),
+('Déchet encombrant', 'Objet volumineux sur la voie publique', -18.9190, 47.5201, 4, 'NOUVEAU', 6.50, 175000, 3, '2024-01-18', NULL, NULL, 0),
+
+-- Tsaralalana
+('Signalisation endommagée', 'Panneau de signalisation abîmé ou manquant', -18.9058, 47.5186, 3, 'TERMINE', NULL, 195000, 1, '2023-12-15', '2023-12-22', '2024-01-08', 100),
+('Nid-de-poule', 'Dépression dans la chaussée nécessitant réparation', -18.9043, 47.5198, 1, 'EN_COURS', 4.80, 580000, 6, '2024-01-03', '2024-01-10', NULL, 55),
+
+-- Mahamasina
+('Végétation invasive', 'Végétation gênant la circulation ou la visibilité', -18.9215, 47.5162, 5, 'TERMINE', 12.00, 380000, 4, '2023-12-10', '2023-12-18', '2024-01-05', 100),
+('Fuite eau', 'Fuite d''eau sur la voie publique', -18.9221, 47.5175, 6, 'NOUVEAU', 3.50, 490000, 5, '2024-01-20', NULL, NULL, 0),
+
+-- Anosy
+('Caniveau bouché', 'Caniveau obstrué par des déchets', -18.9256, 47.5148, 7, 'NOUVEAU', 2.80, 165000, NULL, '2024-01-17', NULL, NULL, 0),
+('Déchet encombrant', 'Objet volumineux sur la voie publique', -18.9243, 47.5132, 4, 'EN_COURS', 5.50, 142000, 3, '2024-01-02', '2024-01-09', NULL, 90),
+
+-- Andraharo
+('Éclairage défectueux', 'Lampadaire ou système d''éclairage HS', -18.8987, 47.5109, 2, 'TERMINE', NULL, 230000, 2, '2023-12-05', '2023-12-12', '2023-12-28', 100),
+('Nid-de-poule', 'Dépression dans la chaussée nécessitant réparation', -18.9002, 47.5123, 1, 'NOUVEAU', 6.30, 710000, 1, '2024-01-22', NULL, NULL, 0),
+
+-- Ivandry
+('Végétation invasive', 'Végétation gênant la circulation ou la visibilité', -18.9328, 47.5081, 5, 'NOUVEAU', 9.50, 420000, 4, '2024-01-19', NULL, NULL, 0),
+('Signalisation endommagée', 'Panneau de signalisation abîmé ou manquant', -18.9315, 47.5094, 3, 'TERMINE', NULL, 205000, 1, '2023-12-22', '2024-01-05', '2024-01-18', 100),
+
+-- Points supplémentaires
+('Nid-de-poule', 'Dépression dans la chaussée nécessitant réparation', -18.9065, 47.5321, 1, 'NOUVEAU', 2.20, 310000, NULL, '2024-01-23', NULL, NULL, 0),
+('Caniveau bouché', 'Caniveau obstrué par des déchets', -18.9098, 47.5194, 7, 'NOUVEAU', 1.80, 125000, NULL, '2024-01-24', NULL, NULL, 0),
+('Déchet encombrant', 'Objet volumineux sur la voie publique', -18.9167, 47.5118, 4, 'NOUVEAU', 7.00, 185000, NULL, '2024-01-25', NULL, NULL, 0);

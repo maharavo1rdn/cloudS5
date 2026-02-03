@@ -1,8 +1,11 @@
 // models/associations.js
 import Point from './Point.js';
+import Signalement from './Signalement.js';
+import SignalementHistorique from './SignalementHistorique.js';
 import Probleme from './Probleme.js';
 import Entreprise from './Entreprise.js';
 import PointStatut from './PointStatut.js';
+import User from './User.js';
 
 export const setupAssociations = () => {
   // Point belongsTo Probleme
@@ -39,6 +42,24 @@ export const setupAssociations = () => {
   PointStatut.hasMany(Point, {
     foreignKey: 'point_statut_id',
     as: 'points'
+  });
+
+  // Signalement hasMany SignalementHistorique
+  Signalement.hasMany(SignalementHistorique, {
+    foreignKey: 'signalement_id',
+    as: 'historiques'
+  });
+
+  // SignalementHistorique belongsTo Signalement
+  SignalementHistorique.belongsTo(Signalement, {
+    foreignKey: 'signalement_id',
+    as: 'signalement'
+  });
+
+  // SignalementHistorique belongsTo User
+  SignalementHistorique.belongsTo(User, {
+    foreignKey: 'user_id',
+    as: 'user'
   });
 
   console.log('✅ Associations Sequelize configurées');

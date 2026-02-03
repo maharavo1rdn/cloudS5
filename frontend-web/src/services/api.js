@@ -198,6 +198,11 @@ export const syncAPI = {
 
 // ==================== POINTS API ====================
 export const pointsAPI = {
+  // Récupérer tous les points
+  getAll: async () => {
+    return apiCall('/points');
+  },
+  
   // Créer un point (Manager)
   create: async (pointData) => {
     return apiCall('/points', {

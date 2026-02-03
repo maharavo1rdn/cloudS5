@@ -13,6 +13,7 @@ import {
   X
 } from 'lucide-react';
 import routesAPI from '../../services/routesAPI';
+import { pointsAPI } from '../../services/api';
 import './MapView.css';
 
 // Corriger les icônes Leaflet
@@ -50,10 +51,16 @@ const parseCoords = (lat, lng) => {
 };
 
 // Composant pour détecter les clics sur la carte
-function MapClickHandler({ setPopupInfo }) {
+function MapClickHandler({ setPopupInfo, onRightClick }) {
   useMapEvents({
     click: () => {
       setPopupInfo(null);
+    },
+    contextmenu: (e) => {
+      e.originalEvent.preventDefault();
+      if (onRightClick) {
+        onRightClick(e.latlng);
+      }
     },
   });
   return null;
@@ -62,6 +69,8 @@ function MapClickHandler({ setPopupInfo }) {
 const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
   const [signalements, setSignalements] = useState([]);
   const [allSignalements, setAllSignalements] = useState([]);
+  const [points, setPoints] = useState([]);
+  const [allPoints, setAllPoints] = useState([]);
   const [statuts, setStatuts] = useState([]);
   const [selectedStatuts, setSelectedStatuts] = useState([]);
   const [popupInfo, setPopupInfo] = useState(null);
@@ -70,6 +79,8 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showFilter, setShowFilter] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createPosition, setCreatePosition] = useState(null);
 
   // Position initiale : Antananarivo
   const centerPosition = [-18.8792, 47.5079];
@@ -77,39 +88,63 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
   // Charger les données
   useEffect(() => {
     loadData();
+    loadPoints();
     loadStatuts();
   }, []);
 
-  // Filtrer les signalements quand les statuts sélectionnés changent
+  // Filtrer les signalements et points quand les statuts sélectionnés changent
   useEffect(() => {
     if (selectedStatuts.length === 0) {
       setSignalements(allSignalements);
+      setPoints(allPoints);
     } else {
-      const filtered = allSignalements.filter(s => 
-        selectedStatuts.includes(s.statut?.code || s.statut)
-      );
-      setSignalements(filtered);
+      const filteredSignalements = allSignalements.filter(s => {
+        // s.statut est maintenant une string directe (NOUVEAU, EN_COURS, TERMINE)
+        const statutCode = typeof s.statut === 'string' ? s.statut : s.statut?.code;
+        return selectedStatuts.includes(statutCode);
+      });
+      setSignalements(filteredSignalements);
+      
+      const filteredPoints = allPoints.filter(p => {
+        const statutCode = typeof p.statut === 'string' ? p.statut : p.statut?.code;
+        // Mapper A_FAIRE -> NOUVEAU pour le filtrage
+        const mappedCode = statutCode === 'A_FAIRE' ? 'NOUVEAU' : statutCode;
+        return selectedStatuts.includes(mappedCode);
+      });
+      setPoints(filteredPoints);
     }
-  }, [selectedStatuts, allSignalements]);
+  }, [selectedStatuts, allSignalements, allPoints]);
 
   const loadData = async () => {
     setLoading(true);
     setError(null);
     try {
       const data = await routesAPI.getRoutesEnTravaux();
-      // Filtrer et valider les données (support snake_case et camelCase pour la compatibilité)
+      console.log('[MapView] Données reçues:', data.length, 'signalements');
+      console.log('[MapView] Premier signalement:', data[0]);
+      
+      // Filtrer et valider les données
       const validData = data
-        .map(s => ({
-          ...s,
-          latitude: parseFloat(s.latitude) || 0,
-          longitude: parseFloat(s.longitude) || 0,
-          surfaceM2: parseFloat(s.surface_m2 ?? s.surfaceM2) || 0,
-          budget: parseFloat(s.budget ?? s.budget) || 0,
-          avancementPourcentage: parseInt(s.avancement_pourcentage ?? s.avancementPourcentage ?? 0, 10) || 0,
-          dateDetection: s.date_detection ?? s.dateDetection ?? null,
-        }))
+        .map(s => {
+          // Le statut est maintenant un ENUM string (NOUVEAU, EN_COURS, TERMINE)
+          // au lieu d'un objet {code, description}
+          const statutCode = typeof s.statut === 'string' ? s.statut : s.statut?.code;
+          
+          return {
+            ...s,
+            latitude: parseFloat(s.latitude) || 0,
+            longitude: parseFloat(s.longitude) || 0,
+            surfaceM2: parseFloat(s.surface_m2 ?? s.surfaceM2) || 0,
+            budget: parseFloat(s.budget ?? s.budget) || 0,
+            avancementPourcentage: parseInt(s.avancement_pourcentage ?? s.avancementPourcentage ?? 0, 10) || 0,
+            dateDetection: s.date_detection ?? s.dateDetection ?? null,
+            statut: statutCode, // Normaliser le statut en string
+            probleme: s.probleme?.nom || s.nom || 'Sans nom'
+          };
+        })
         .filter(s => isValidCoords(s.latitude, s.longitude));
       
+      console.log('[MapView] Données valides:', validData.length, 'signalements');
       setAllSignalements(validData);
       setSignalements(validData);
     } catch (err) {
@@ -120,13 +155,58 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
     }
   };
 
+  const loadPoints = async () => {
+    try {
+      const data = await pointsAPI.getAll();
+      console.log('[MapView] Points reçus:', data.length, 'points');
+      
+      // Normaliser les points avec le même format que les signalements
+      const validPoints = data
+        .map(p => {
+          // Mapper le statut du point (objet avec code) vers string
+          const statutCode = p.statut?.code || 'A_FAIRE';
+          
+          return {
+            ...p,
+            latitude: parseFloat(p.latitude) || 0,
+            longitude: parseFloat(p.longitude) || 0,
+            surfaceM2: parseFloat(p.surface_m2) || 0,
+            budget: parseFloat(p.budget) || 0,
+            avancementPourcentage: parseInt(p.avancement_pourcentage ?? 0, 10) || 0,
+            dateDetection: p.date_detection,
+            statut: statutCode,
+            nom: p.probleme?.nom || 'Point sans nom',
+            description: p.probleme?.description || '',
+            probleme: p.probleme?.nom || 'Sans nom',
+            isPoint: true // Flag pour identifier qu'il s'agit d'un point
+          };
+        })
+        .filter(p => isValidCoords(p.latitude, p.longitude));
+      
+      console.log('[MapView] Points valides:', validPoints.length);
+      setAllPoints(validPoints);
+      setPoints(validPoints);
+    } catch (err) {
+      console.error('Erreur lors du chargement des points:', err);
+    }
+  };
+
   const loadStatuts = async () => {
     try {
       const data = await routesAPI.getAllStatuts();
       setStatuts(data);
-      setSelectedStatuts(data.map(s => s.code));
+      // Mapper les codes de l'API vers les ENUM de la table signalements
+      // A_FAIRE -> NOUVEAU, EN_COURS -> EN_COURS, TERMINE -> TERMINE
+      const mappedCodes = data.map(s => {
+        if (s.code === 'A_FAIRE') return 'NOUVEAU';
+        return s.code;
+      });
+      setSelectedStatuts(mappedCodes);
+      console.log('[MapView] Statuts chargés et mappés:', mappedCodes);
     } catch (err) {
       console.error('Erreur lors du chargement des statuts:', err);
+      // En cas d'erreur, utiliser les valeurs par défaut
+      setSelectedStatuts(['NOUVEAU', 'EN_COURS', 'TERMINE']);
     }
   };
 
@@ -134,6 +214,7 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
   const getStatusColor = (statusCode) => {
     switch (statusCode) {
       case 'A_FAIRE':
+      case 'NOUVEAU':
       case 'nouveau':
         return '#ef4444';
       case 'EN_COURS':
@@ -169,6 +250,7 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
   const getStatusIcon = (statusCode) => {
     switch (statusCode) {
       case 'A_FAIRE':
+      case 'NOUVEAU':
       case 'nouveau':
         return <AlertCircle size={16} />;
       case 'EN_COURS':
@@ -184,11 +266,12 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
 
   // Label du statut
   const getStatusLabel = (statusCode) => {
-    const statut = statuts.find(s => s.code === statusCode);
+    const statut = statuts.find(s => s.code === statusCode || (s.code === 'A_FAIRE' && statusCode === 'NOUVEAU'));
     if (statut) return statut.description;
     
     switch (statusCode) {
       case 'A_FAIRE':
+      case 'NOUVEAU':
       case 'nouveau':
         return 'Nouveau';
       case 'EN_COURS':
@@ -210,15 +293,20 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
 
   // Gestion des filtres
   const toggleStatutFilter = (statutCode) => {
-    if (selectedStatuts.includes(statutCode)) {
-      setSelectedStatuts(selectedStatuts.filter(s => s !== statutCode));
+    // Mapper A_FAIRE vers NOUVEAU pour correspondre aux signalements
+    const mappedCode = statutCode === 'A_FAIRE' ? 'NOUVEAU' : statutCode;
+    
+    if (selectedStatuts.includes(mappedCode)) {
+      setSelectedStatuts(selectedStatuts.filter(s => s !== mappedCode));
     } else {
-      setSelectedStatuts([...selectedStatuts, statutCode]);
+      setSelectedStatuts([...selectedStatuts, mappedCode]);
     }
   };
 
   const selectAllStatuts = () => {
-    setSelectedStatuts(statuts.map(s => s.code));
+    // Mapper A_FAIRE vers NOUVEAU
+    const mappedCodes = statuts.map(s => s.code === 'A_FAIRE' ? 'NOUVEAU' : s.code);
+    setSelectedStatuts(mappedCodes);
   };
 
   const clearAllStatuts = () => {
@@ -246,15 +334,70 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
     console.log('Carte Leaflet chargée avec succès');
   };
 
+  // Gérer le clic droit pour créer un signalement
+  const handleRightClick = (latlng) => {
+    setCreatePosition({ lat: latlng.lat, lng: latlng.lng });
+    setShowCreateModal(true);
+  };
+
+  // Créer un nouveau signalement
+  const handleCreateSignalement = async (formData) => {
+    try {
+      setLoading(true);
+      const newSignalement = {
+        nom: formData.nom || 'Nouveau signalement',
+        description: formData.description || '',
+        latitude: createPosition.lat,
+        longitude: createPosition.lng,
+        probleme_id: parseInt(formData.probleme_id) || 1,
+        statut: 'NOUVEAU',
+        surface_m2: parseFloat(formData.surface_m2) || 0,
+        budget: parseFloat(formData.budget) || 0,
+        date_detection: new Date().toISOString().split('T')[0]
+      };
+
+      // Appeler l'API pour créer le signalement
+      const response = await fetch('http://localhost:3000/api/signalements', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(newSignalement)
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la création du signalement');
+      }
+
+      // Recharger les données
+      await loadData();
+      setShowCreateModal(false);
+      setCreatePosition(null);
+    } catch (err) {
+      console.error('Erreur:', err);
+      alert('Erreur lors de la création du signalement: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Statistiques
   const getStats = () => {
-    const total = allSignalements.length;
-    const filtered = signalements.length;
+    // Combiner signalements et points pour les statistiques
+    const allItems = [...allSignalements, ...allPoints];
+    const total = allItems.length;
+    const filtered = signalements.length + points.length;
     const parStatut = {};
     
-    allSignalements.forEach(s => {
-      const statutCode = s.statut?.code || s.statut;
-      parStatut[statutCode] = (parStatut[statutCode] || 0) + 1;
+    allItems.forEach(item => {
+      // item.statut est une string directe (NOUVEAU, EN_COURS, TERMINE) ou A_FAIRE pour les points
+      const statutCode = typeof item.statut === 'string' ? item.statut : item.statut?.code;
+      // Mapper A_FAIRE -> NOUVEAU pour les statistiques
+      const mappedCode = statutCode === 'A_FAIRE' ? 'NOUVEAU' : statutCode;
+      if (mappedCode) {
+        parStatut[mappedCode] = (parStatut[mappedCode] || 0) + 1;
+      }
     });
 
     return { total, filtered, parStatut };
@@ -329,20 +472,26 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
           </div>
           
           <div className="filter-options">
-            {statuts.map(statut => (
-              <div 
-                key={statut.id} 
-                className={`filter-option ${selectedStatuts.includes(statut.code) ? 'selected' : ''}`}
-                onClick={() => toggleStatutFilter(statut.code)}
-              >
+            {statuts.map(statut => {
+              // Mapper A_FAIRE vers NOUVEAU pour la vérification
+              const mappedCode = statut.code === 'A_FAIRE' ? 'NOUVEAU' : statut.code;
+              const isSelected = selectedStatuts.includes(mappedCode);
+              
+              return (
                 <div 
-                  className="filter-dot" 
-                  style={{ backgroundColor: getStatusColor(statut.code) }}
-                ></div>
-                <span className="filter-label">{statut.description}</span>
-                <span className="filter-count">({stats.parStatut[statut.code] || 0})</span>
-              </div>
-            ))}
+                  key={statut.id} 
+                  className={`filter-option ${isSelected ? 'selected' : ''}`}
+                  onClick={() => toggleStatutFilter(statut.code)}
+                >
+                  <div 
+                    className="filter-dot" 
+                    style={{ backgroundColor: getStatusColor(statut.code) }}
+                  ></div>
+                  <span className="filter-label">{statut.description}</span>
+                  <span className="filter-count">({stats.parStatut[mappedCode] || 0})</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -376,7 +525,7 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
               <Marker
                 key={signalement.id}
                 position={[lat, lng]}
-                icon={createCustomIcon(signalement.statut?.code || signalement.statut)}
+                icon={createCustomIcon(typeof signalement.statut === 'string' ? signalement.statut : signalement.statut?.code)}
                 eventHandlers={{
                   click: () => handleMarkerClick(signalement),
                   mouseover: () => setHoveredMarker(signalement.id),
@@ -395,10 +544,10 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
                       <div className="tooltip-header">
                         <span 
                           className="tooltip-status"
-                          style={{ backgroundColor: getStatusColor(signalement.statut?.code || signalement.statut) }}
+                          style={{ backgroundColor: getStatusColor(typeof signalement.statut === 'string' ? signalement.statut : signalement.statut?.code) }}
                         >
-                          {getStatusIcon(signalement.statut?.code || signalement.statut)}
-                          <span>{getStatusLabel(signalement.statut?.code || signalement.statut)}</span>
+                          {getStatusIcon(typeof signalement.statut === 'string' ? signalement.statut : signalement.statut?.code)}
+                          <span>{getStatusLabel(typeof signalement.statut === 'string' ? signalement.statut : signalement.statut?.code)}</span>
                         </span>
                         <span className="tooltip-date">
                           {routesAPI.formatDate(signalement.dateDetection || signalement.date_detection)}
@@ -417,6 +566,66 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
                         {signalement.entreprise && (
                           <span className="tooltip-entreprise">
                             🏗️ {typeof signalement.entreprise === 'object' ? signalement.entreprise.nom : signalement.entreprise}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </Tooltip>
+                )}
+              </Marker>
+            );
+          })}
+
+          {/* Markers pour chaque point filtré */}
+          {points.map((point) => {
+            const [lat, lng] = parseCoords(point.latitude, point.longitude);
+            const statutCode = typeof point.statut === 'string' ? point.statut : point.statut?.code;
+            
+            return (
+              <Marker
+                key={`point-${point.id}`}
+                position={[lat, lng]}
+                icon={createCustomIcon(statutCode)}
+                eventHandlers={{
+                  click: () => handleMarkerClick(point),
+                  mouseover: () => setHoveredMarker(`point-${point.id}`),
+                  mouseout: () => setHoveredMarker(null)
+                }}
+              >
+                {/* Tooltip au survol */}
+                {hoveredMarker === `point-${point.id}` && (
+                  <Tooltip
+                    direction="top"
+                    offset={[0, -20]}
+                    permanent={false}
+                    className="marker-tooltip"
+                  >
+                    <div className="tooltip-content">
+                      <div className="tooltip-header">
+                        <span 
+                          className="tooltip-status"
+                          style={{ backgroundColor: getStatusColor(statutCode) }}
+                        >
+                          {getStatusIcon(statutCode)}
+                          <span>{getStatusLabel(statutCode)}</span>
+                        </span>
+                        <span className="tooltip-date">
+                          {routesAPI.formatDate(point.dateDetection || point.date_detection)}
+                        </span>
+                      </div>
+                      <p className="tooltip-description">{point.nom || point.probleme}</p>
+                      <p className="tooltip-address">
+                        {formatCoordonnees(lat, lng)}
+                      </p>
+                      <div className="tooltip-details">
+                        <span>Surface: {point.surfaceM2 || point.surface_m2 || 'N/A'} m²</span>
+                        <span>Budget: {formatBudget(point.budget)}</span>
+                      </div>
+                      <div className="tooltip-details">
+                        <span>Avancement: {point.avancementPourcentage || point.avancement_pourcentage || 0}%</span>
+                        {point.entreprise && (
+                          <span className="tooltip-entreprise">
+                            🏗️ {typeof point.entreprise === 'object' ? point.entreprise.nom : point.entreprise}
                           </span>
                         )}
                       </div>
@@ -454,10 +663,10 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
                   <div className="popup-header">
                     <span 
                       className="popup-status"
-                      style={{ backgroundColor: getStatusColor(popupInfo.statut?.code || popupInfo.statut) }}
+                      style={{ backgroundColor: getStatusColor(typeof popupInfo.statut === 'string' ? popupInfo.statut : popupInfo.statut?.code) }}
                     >
-                      {getStatusIcon(popupInfo.statut?.code || popupInfo.statut)}
-                      {getStatusLabel(popupInfo.statut?.code || popupInfo.statut)}
+                      {getStatusIcon(typeof popupInfo.statut === 'string' ? popupInfo.statut : popupInfo.statut?.code)}
+                      {getStatusLabel(typeof popupInfo.statut === 'string' ? popupInfo.statut : popupInfo.statut?.code)}
                     </span>
                   </div>
                   <h3>{popupInfo.probleme || popupInfo.description}</h3>
@@ -503,7 +712,11 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
             );
           })()}
 
-          <MapClickHandler setPopupInfo={setPopupInfo} onMapClick={onMapClick} />
+          <MapClickHandler 
+            setPopupInfo={setPopupInfo} 
+            onMapClick={onMapClick}
+            onRightClick={handleRightClick}
+          />
         </MapContainer>
 
         {/* Légende */}
@@ -548,6 +761,102 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
           {showFilter ? 'Masquer filtres' : 'Afficher filtres'}
         </button>
       </div>
+
+      {/* Modal de création de signalement */}
+      {showCreateModal && createPosition && (
+        <div className="create-modal-overlay" onClick={() => setShowCreateModal(false)}>
+          <div className="create-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="create-modal-header">
+              <h3>Nouveau Signalement</h3>
+              <button onClick={() => setShowCreateModal(false)} className="close-btn">
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.target);
+              handleCreateSignalement({
+                nom: formData.get('nom'),
+                description: formData.get('description'),
+                probleme_id: formData.get('probleme_id'),
+                surface_m2: formData.get('surface_m2'),
+                budget: formData.get('budget')
+              });
+            }}>
+              <div className="form-group">
+                <label>Position</label>
+                <input 
+                  type="text" 
+                  value={`${createPosition.lat.toFixed(6)}, ${createPosition.lng.toFixed(6)}`}
+                  readOnly
+                  className="form-control"
+                />
+              </div>
+              <div className="form-group">
+                <label>Nom du signalement *</label>
+                <input 
+                  type="text" 
+                  name="nom"
+                  placeholder="Ex: Nid-de-poule"
+                  required
+                  className="form-control"
+                />
+              </div>
+              <div className="form-group">
+                <label>Description</label>
+                <textarea 
+                  name="description"
+                  placeholder="Description détaillée..."
+                  rows="3"
+                  className="form-control"
+                />
+              </div>
+              <div className="form-group">
+                <label>Type de problème *</label>
+                <select name="probleme_id" required className="form-control">
+                  <option value="1">Nid-de-poule</option>
+                  <option value="2">Éclairage défectueux</option>
+                  <option value="3">Signalisation endommagée</option>
+                  <option value="4">Déchet encombrant</option>
+                  <option value="5">Végétation invasive</option>
+                  <option value="6">Fuite eau</option>
+                  <option value="7">Caniveau bouché</option>
+                </select>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Surface (m²)</label>
+                  <input 
+                    type="number" 
+                    name="surface_m2"
+                    step="0.01"
+                    placeholder="0"
+                    className="form-control"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Budget estimé (Ar)</label>
+                  <input 
+                    type="number" 
+                    name="budget"
+                    step="0.01"
+                    placeholder="0"
+                    className="form-control"
+                  />
+                </div>
+              </div>
+              <div className="form-actions">
+                <button type="button" onClick={() => setShowCreateModal(false)} className="btn-cancel">
+                  Annuler
+                </button>
+                <button type="submit" className="btn-submit" disabled={loading}>
+                  {loading ? 'Création...' : 'Créer le signalement'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
