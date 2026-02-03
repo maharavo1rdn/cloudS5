@@ -21,12 +21,12 @@ interface FirebaseError {
 }
 
 class AuthService {
+  // private signInUrl = `${import.meta.env.VITE_API_BASE_URL}/auth/login` || 'http://localhost:3000/auth/login';
+  // private signUpUrl = `${import.meta.env.VITE_API_BASE_URL}/auth/register` || 'http://localhost:3000/auth/register';
   private signInUrl = import.meta.env.SIGN_IN_FIREBASE_URL || 'https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=AIzaSyBLueXEEBaC4KRaPYBQ5RmcGCL5sxzwa6E';
   private signUpUrl = import.meta.env.SIGN_UP_FIREBASE_URL || 'https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=AIzaSyBLueXEEBaC4KRaPYBQ5RmcGCL5sxzwa6E';
-
   async login(email: string, password: string): Promise<FirebaseAuthResponse> {
     try {
-      // Check login attempts in Firestore first
       const attempt = await loginAttemptService.getAttempt(email);
       if (attempt && attempt.blocked_until) {
         const blockedUntil = attempt.blocked_until?.toDate ? attempt.blocked_until.toDate() : new Date(attempt.blocked_until);
@@ -168,7 +168,7 @@ class AuthService {
 
   async isManager(): Promise<boolean> {
     const userData = await this.getUserData();
-    return userData?.email === 'admin@gmail.com';
+    return userData?.email === 'admin@gmail.com' || userData?.role === 'manager';
   }
 
   // Vérifier la connectivité Firestore

@@ -9,149 +9,189 @@ import {
   query, 
   where, 
   orderBy,
-  Timestamp 
+  Timestamp,
+  addDoc
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { Route, RoutePoint, Probleme, CreateRouteInput, RouteStatut, PointStatut } from '../types/route.types';
+import { Point, Route, Probleme, Entreprise, CreatePointInput, CreateRouteInput, PointStatut, PointImage } from '../types/route.types';
+import imageService from './imageService';
 
 class RouteService {
-  private readonly ROUTES_COLLECTION = 'routes';
-  private readonly POINTS_COLLECTION = 'route_points';
+  private readonly POINTS_COLLECTION = 'points';
   private readonly PROBLEMES_COLLECTION = 'problemes';
+  private readonly ENTREPRISES_COLLECTION = 'entreprises';
 
-  // Créer un signalement de route
+  // Créer un signalement (document dans collection 'points')
   async createRoute(input: CreateRouteInput, userId: string): Promise<Route> {
     try {
-      const routeRef = doc(collection(db, this.ROUTES_COLLECTION));
-      
-      const route: Route = {
-        id: routeRef.id,
+      const pointRef = doc(collection(db, this.POINTS_COLLECTION));
+
+      const pointDoc: any = {
         nom: input.nom,
-        description: input.description,
+        description: input.description || '',
         probleme_id: input.probleme_id,
-        statut: (input.statut || 'NOUVEAU') as RouteStatut,
-        surface_m2: input.surface_m2,
+        surface_m2: input.surface_m2 || 0,
+        budget: input.budget || 0,
+        entreprise_id: input.entreprise_id || null,
         date_detection: new Date(),
-        avancement_pourcentage: 0,
-        created_by: userId,
-        created_at: new Date(),
-      };
-
-      await setDoc(routeRef, route);
-
-      // Créer le point géographique dans la sous-collection 'points'
-      const pointRef = doc(collection(db, this.ROUTES_COLLECTION, routeRef.id, 'points'));
-      const point: RoutePoint = {
-        id: pointRef.id,
-        route_id: route.id,
+        date_debut: input.date_debut || null,
+        date_fin: input.date_fin || null,
+        avancement_pourcentage: input.avancement_pourcentage || 0,
         latitude: input.latitude,
         longitude: input.longitude,
-        ordre: 1,
-        point_statut: 'A_TRAITER',
-        created_at: new Date(),
+        point_statut: input.point_statut || 'A_FAIRE',
+        created_by: userId,
+        created_at: new Date()
       };
 
-      await setDoc(pointRef, point);
+      await setDoc(pointRef, pointDoc);
 
-      return route;
+      // Upload images si présentes
+      if (input.images && input.images.length > 0) {
+        const imageUrls = await imageService.uploadImages(pointRef.id, input.images as Blob[]);
+        console.log(`📸 URLs reçues de imageService (${imageUrls.length}):`, imageUrls);
+        
+        // Créer les documents dans la sous-collection images
+        const imagesCollection = collection(db, this.POINTS_COLLECTION, pointRef.id, 'images');
+        for (const imageUrl of imageUrls) {
+          console.log(`💾 Stockage dans Firestore: image_url = ${imageUrl}`);
+          await addDoc(imagesCollection, {
+            image_url: imageUrl,
+            firebase_url: imageUrl,
+            created_at: new Date()
+          });
+        }
+      }
+
+      // Créer l'entrée initiale dans l'historique
+      await this.createHistoEntry(pointRef.id, {
+        point_statut_id: null, // On pourrait mapper A_FAIRE -> 1, etc.
+        avancement_pourcentage: pointDoc.avancement_pourcentage,
+        date: new Date()
+      });
+
+      const point: Point = {
+        id: pointRef.id,
+        nom: pointDoc.nom,
+        description: pointDoc.description,
+        probleme_id: pointDoc.probleme_id?.toString(),
+        probleme: undefined,
+        latitude: pointDoc.latitude,
+        longitude: pointDoc.longitude,
+        point_statut: pointDoc.point_statut as PointStatut,
+        surface_m2: pointDoc.surface_m2,
+        budget: pointDoc.budget,
+        entreprise_id: pointDoc.entreprise_id?.toString(),
+        date_detection: pointDoc.date_detection,
+        date_debut: pointDoc.date_debut,
+        date_fin: pointDoc.date_fin,
+        avancement_pourcentage: pointDoc.avancement_pourcentage,
+        created_by: userId,
+        created_at: pointDoc.created_at
+      };
+
+      return point;
     } catch (error) {
       console.error('Erreur lors de la création du signalement:', error);
       throw new Error('Impossible de créer le signalement');
     }
   }
 
-  // Récupérer tous les signalements
-  async getAllRoutes(): Promise<Route[]> {
+  // Créer une entrée dans l'historique
+  private async createHistoEntry(pointId: string, data: { point_statut_id: number | null, avancement_pourcentage: number, date: Date }): Promise<void> {
     try {
-      const querySnapshot = await getDocs(
-        collection(db, this.ROUTES_COLLECTION)
-      );
-
-      const routes: Route[] = [];
-      for (const docSnap of querySnapshot.docs) {
-        const routeData = docSnap.data();
-        
-        // Récupérer les points de cette route
-        const pointsSnapshot = await getDocs(
-          collection(db, this.ROUTES_COLLECTION, docSnap.id, 'points')
-        );
-        
-        const points: RoutePoint[] = pointsSnapshot.docs.map(pointDoc => {
-          const pointData = pointDoc.data();
-          return {
-            id: pointDoc.id,
-            route_id: docSnap.id,
-            latitude: pointData.latitude,
-            longitude: pointData.longitude,
-            ordre: pointData.ordre,
-            point_statut: pointData.point_statut || 'A_TRAITER',
-            created_at: pointData.created_at?.toDate?.() || new Date()
-          };
-        });
-        
-        // Récupérer le problème associé
-        let probleme: Probleme | undefined;
-        if (routeData.probleme_id) {
-          const problemeDoc = await getDoc(doc(db, this.PROBLEMES_COLLECTION, routeData.probleme_id.toString()));
-          if (problemeDoc.exists()) {
-            const pData = problemeDoc.data();
-            probleme = {
-              id: problemeDoc.id,
-              nom: pData.nom,
-              description: pData.description,
-              created_at: pData.created_at?.toDate?.() || new Date()
-            };
-          }
-        }
-        
-        routes.push({
-          id: docSnap.id,
-          nom: routeData.nom || 'Route sans nom',
-          description: routeData.description,
-          probleme_id: routeData.probleme_id?.toString(),
-          probleme: probleme,
-          statut: routeData.statut || 'NOUVEAU',
-          surface_m2: routeData.surface_m2 || routeData.superficie || 0,
-          budget: routeData.budget || 0,
-          entreprise_id: routeData.entreprise_id?.toString(),
-          date_detection: routeData.date_detection?.toDate?.() || routeData.date_creation?.toDate?.() || new Date(),
-          date_debut: routeData.date_debut?.toDate?.(),
-          date_fin: routeData.date_fin?.toDate?.(),
-          avancement_pourcentage: routeData.avancement_pourcentage || 0,
-          points: points,
-          created_by: routeData.created_by || routeData.user_id || 'unknown',
-          created_at: routeData.created_at?.toDate?.() || new Date()
-        });
-      }
-
-      return routes;
+      const histoCollection = collection(db, this.POINTS_COLLECTION, pointId, 'historique');
+      await addDoc(histoCollection, data);
+      console.log(`✅ Historique créé pour point ${pointId}`);
     } catch (error) {
-      console.error('❌ Erreur lors de la récupération des signalements:', error);
+      console.error('❌ Erreur création historique:', error);
+    }
+  }
+
+  // Récupérer toutes les images d'un point
+  async getPointImages(pointId: string): Promise<PointImage[]> {
+    try {
+      const imagesSnapshot = await getDocs(collection(db, this.POINTS_COLLECTION, pointId, 'images'));
+      
+      const images = imagesSnapshot.docs.map(doc => {
+        const data = doc.data();
+        console.log(`📷 Image lue depuis Firestore:`, {
+          id: doc.id,
+          image_url: data.image_url,
+          firebase_url: data.firebase_url,
+          image_url_type: typeof data.image_url
+        });
+        
+        return {
+          id: doc.id,
+          point_id: pointId,
+          ...data,
+          created_at: data.created_at?.toDate?.() || new Date()
+        } as PointImage;
+      });
+      
+      console.log(`✅ ${images.length} images récupérées pour le point ${pointId}`);
+      return images;
+    } catch (error) {
+      console.error('❌ Erreur récupération images:', error);
       return [];
     }
   }
 
-  // Récupérer les points d'une route
-  async getRoutePoints(routeId: string): Promise<RoutePoint[]> {
+  // Récupérer tous les signalements (points)
+  async getAllRoutes(): Promise<Point[]> {
     try {
-      const querySnapshot = await getDocs(
-        query(
-          collection(db, this.POINTS_COLLECTION),
-          where('route_id', '==', routeId),
-          orderBy('ordre', 'asc')
-        )
-      );
+      const querySnapshot = await getDocs(collection(db, this.POINTS_COLLECTION));
 
-      return querySnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          ...data,
-          id: doc.id,
-          created_at: data.created_at?.toDate?.() || new Date(data.created_at),
-        } as RoutePoint;
-      });
+      const points: Point[] = [];
+      for (const docSnap of querySnapshot.docs) {
+        const data = docSnap.data();
+
+        // Récupérer le problème associé
+        let probleme: Probleme | undefined;
+        if (data.probleme_id) {
+          try {
+            const problemeDoc = await getDoc(doc(db, this.PROBLEMES_COLLECTION, data.probleme_id.toString()));
+            if (problemeDoc.exists()) {
+              const pData = problemeDoc.data();
+              probleme = {
+                id: problemeDoc.id,
+                nom: pData.nom,
+                description: pData.description,
+                created_at: pData.created_at?.toDate?.() || new Date()
+              };
+            }
+          } catch (err) { }
+        }
+
+        // Récupérer les images
+        const images = await this.getPointImages(docSnap.id);
+
+        points.push({
+          id: docSnap.id,
+          nom: data.nom || 'Signalement',
+          description: data.description || '',
+          probleme_id: data.probleme_id?.toString(),
+          probleme: probleme,
+          latitude: data.latitude || 0,
+          longitude: data.longitude || 0,
+          point_statut: (data.point_statut as PointStatut) || 'A_FAIRE',
+          surface_m2: data.surface_m2 || 0,
+          budget: data.budget || 0,
+          entreprise_id: data.entreprise_id?.toString(),
+          date_detection: data.date_detection?.toDate?.() || new Date(),
+          date_debut: data.date_debut?.toDate?.() || null,
+          date_fin: data.date_fin?.toDate?.() || null,
+          avancement_pourcentage: data.avancement_pourcentage || 0,
+          images: images,
+          created_by: data.created_by || 'unknown',
+          created_at: data.created_at?.toDate?.() || new Date()
+        });
+      }
+
+      return points;
     } catch (error) {
-      console.error('Erreur lors de la récupération des points:', error);
+      console.error('❌ Erreur lors de la récupération des signalements:', error);
       return [];
     }
   }
@@ -171,6 +211,25 @@ class RouteService {
       });
     } catch (error) {
       console.error('Erreur lors de la récupération des problèmes:', error);
+      return [];
+    }
+  }
+
+  // Récupérer toutes les entreprises
+  async getEntreprises(): Promise<Entreprise[]> {
+    try {
+      const querySnapshot = await getDocs(collection(db, this.ENTREPRISES_COLLECTION));
+      
+      return querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          ...data,
+          id: doc.id,
+          created_at: data.created_at?.toDate?.() || new Date(data.created_at),
+        } as Entreprise;
+      });
+    } catch (error) {
+      console.error('Erreur lors de la récupération des entreprises:', error);
       return [];
     }
   }
@@ -201,21 +260,22 @@ class RouteService {
     }
   }
 
-  // Mettre à jour le statut d'une route
-  async updateRouteStatus(routeId: string, statut: Route['statut']): Promise<void> {
+  // Mettre à jour le statut d'un point
+  async updateRouteStatus(routeId: string, statut: PointStatut): Promise<void> {
     try {
-      const routeRef = doc(db, this.ROUTES_COLLECTION, routeId);
-      await updateDoc(routeRef, { statut });
+      const pointRef = doc(db, this.POINTS_COLLECTION, routeId);
+      // store status in point_statut field to follow new model
+      await updateDoc(pointRef, { point_statut: statut, updated_at: new Date() });
     } catch (error) {
       console.error('Erreur lors de la mise à jour du statut:', error);
       throw error;
     }
   }
 
-  // Mettre à jour une route complète
-  async updateRoute(routeId: string, updates: Partial<Omit<Route, 'id' | 'created_at' | 'created_by' | 'points'>>): Promise<void> {
+  // Mettre à jour un point
+  async updateRoute(routeId: string, updates: Partial<Omit<Point, 'id' | 'created_at' | 'created_by' | 'latitude' | 'longitude'>>, newImages?: Blob[]): Promise<void> {
     try {
-      const routeRef = doc(db, this.ROUTES_COLLECTION, routeId);
+      const pointRef = doc(db, this.POINTS_COLLECTION, routeId);
       const updateData: any = {
         ...updates,
         updated_at: new Date(),
@@ -228,7 +288,30 @@ class RouteService {
         }
       });
       
-      await updateDoc(routeRef, updateData);
+      await updateDoc(pointRef, updateData);
+
+      // Upload nouvelles images si présentes
+      if (newImages && newImages.length > 0) {
+        const imageUrls = await imageService.uploadImages(routeId, newImages);
+        
+        const imagesCollection = collection(db, this.POINTS_COLLECTION, routeId, 'images');
+        for (const imageUrl of imageUrls) {
+          await addDoc(imagesCollection, {
+            image_url: imageUrl,
+            firebase_url: imageUrl,
+            created_at: new Date()
+          });
+        }
+      }
+
+      // Créer entrée historique si statut ou avancement changé
+      if (updates.point_statut !== undefined || updates.avancement_pourcentage !== undefined) {
+        await this.createHistoEntry(routeId, {
+          point_statut_id: null, // Mapper si nécessaire
+          avancement_pourcentage: updates.avancement_pourcentage || 0,
+          date: new Date()
+        });
+      }
     } catch (error) {
       console.error('Erreur lors de la mise à jour de la route:', error);
       throw new Error('Impossible de mettre à jour le signalement');
@@ -238,14 +321,8 @@ class RouteService {
   // Supprimer un signalement
   async deleteRoute(routeId: string): Promise<void> {
     try {
-      // Supprimer les points associés
-      const points = await this.getRoutePoints(routeId);
-      for (const point of points) {
-        await deleteDoc(doc(db, this.POINTS_COLLECTION, point.id));
-      }
-
-      // Supprimer la route
-      await deleteDoc(doc(db, this.ROUTES_COLLECTION, routeId));
+      // For the new model a signalement is a single document in 'points'
+      await deleteDoc(doc(db, this.POINTS_COLLECTION, routeId));
     } catch (error) {
       console.error('Erreur lors de la suppression du signalement:', error);
       throw error;
