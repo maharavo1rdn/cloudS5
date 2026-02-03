@@ -246,12 +246,18 @@ async function seedDatabase() {
 
       // --- Ajout d'exemples : images et historique pour ce point ---
       try {
-        // Image de démonstration
-        await db.collection('points').doc(route.id).collection('images').add({
-          image_url: `https://via.placeholder.com/800x600.png?text=${route.id}`,
-          firebase_url: `https://via.placeholder.com/800x600.png?text=${route.id}`,
-          created_at: admin.firestore.Timestamp.now()
-        });
+        // Ajout de 1 à 3 images de démonstration stables (picsum) pour éviter les URLs cassées
+        const imagesCount = Math.floor(Math.random() * 3) + 1; // 1..3 images
+        for (let i = 0; i < imagesCount; i++) {
+          const imgUrl = `https://picsum.photos/seed/${route.id}-${i}/800/600`;
+          await db.collection('points').doc(route.id).collection('images').add({
+            image_url: imgUrl,
+            firebase_url: imgUrl,
+            created_at: admin.firestore.Timestamp.now()
+          });
+        }
+
+        console.log(`📸 ${imagesCount} images ajoutées pour ${route.id}`);
 
         // Historique : entrée initiale 'A_FAIRE' et entrée correspondant au statut actuel
         const statutMap = { 'A_FAIRE': 0, 'EN_COURS': 50, 'TERMINE': 100 };

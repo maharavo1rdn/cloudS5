@@ -15,16 +15,27 @@ class ImageService {
       const uploadPromises = images.map(async (image, index) => {
         const timestamp = Date.now();
         const fileName = `${pointId}_${timestamp}_${index}`;
-        const storageRef = ref(storage, `${this.IMAGES_PATH}/${pointId}/${fileName}`);
+        const storagePath = `${this.IMAGES_PATH}/${pointId}/${fileName}`;
+        const storageRef = ref(storage, storagePath);
         
-        await uploadBytes(storageRef, image);
-        const downloadURL = await getDownloadURL(storageRef);
+        console.log(`📤 Upload vers Storage path: ${storagePath}`);
+        console.log(`📤 Bucket configuré: ${storage.app.options.storageBucket}`);
         
-        console.log(`✅ Image uploadée: ${downloadURL}`);
-        return downloadURL;
+        const uploadResult = await uploadBytes(storageRef, image);
+        console.log(`✅ Upload réussi, fullPath: ${uploadResult.ref.fullPath}`);
+        
+        // Solution temporaire: Construire l'URL publique Firebase
+        // TODO: Une fois CORS configuré, utiliser getDownloadURL() pour avoir le token
+        const bucket = storage.app.options.storageBucket;
+        const encodedPath = encodeURIComponent(uploadResult.ref.fullPath);
+        const publicURL = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodedPath}?alt=media`;
+        
+        console.log(`🔗 URL publique générée: ${publicURL}`);
+        return publicURL;
       });
 
       const urls = await Promise.all(uploadPromises);
+      console.log(`✅ ${urls.length} images uploadées avec succès`);
       return urls;
     } catch (error) {
       console.error('❌ Erreur upload images:', error);
