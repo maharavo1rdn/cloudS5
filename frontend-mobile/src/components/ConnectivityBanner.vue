@@ -9,8 +9,8 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { IonIcon } from '@ionic/vue';
 import { cloudOffline } from 'ionicons/icons';
-import authService from '../services/authService';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
 const isOnline = ref(true);
 let connectivityCheckInterval: number | null = null;
 
@@ -32,7 +32,8 @@ onUnmounted(() => {
 
 const checkConnectivity = async () => {
   try {
-    isOnline.value = await authService.checkFirestoreConnectivity();
+    const response = await fetch(`${API_BASE_URL}/health`, { method: 'GET' });
+    isOnline.value = response.ok;
   } catch (error) {
     isOnline.value = false;
   }

@@ -47,11 +47,11 @@
               }}
             </div>
 
-            <div v-for="user in blocked" :key="user.email" class="user-card">
+            <div v-for="user in blocked" :key="user.id" class="user-card">
               <!-- Partie Supérieure : Identité -->
               <div class="card-header">
                 <div class="user-avatar-placeholder">
-                  {{ user.email.charAt(0).toUpperCase() }}
+                  {{ (user.username || user.email).charAt(0).toUpperCase() }}
                 </div>
                 <div class="user-identity">
                   <div class="email-text">{{ user.email }}</div>
@@ -67,21 +67,21 @@
                 <div class="stat-item">
                   <span class="stat-label">Tentatives</span>
                   <span class="stat-value text-danger">
-                    {{ user.attempts }} échecs
+                    {{ user.LoginAttempt?.attempts || 0 }} échecs
                   </span>
                 </div>
                 <div class="stat-divider"></div>
                 <div class="stat-item">
                   <span class="stat-label">Déblocage auto</span>
                   <span class="stat-value">
-                    {{ formatDate(user.blocked_until) }}
+                    {{ formatDate(user.LoginAttempt?.blocked_until) }}
                   </span>
                 </div>
               </div>
 
               <!-- Partie Inférieure : Action -->
               <div class="card-actions">
-                <ion-button expand="block" fill="outline" class="action-btn" @click="unblock(user.email)">
+                <ion-button expand="block" fill="outline" class="action-btn" @click="unblock(user)">
                   <ion-icon :icon="lockOpen" slot="start"></ion-icon>
                   Réactiver l'accès maintenant
                 </ion-button>
@@ -121,13 +121,26 @@ import {
   shieldCheckmark,
   alertCircle,
 } from 'ionicons/icons';
-import loginAttemptService from '../../services/loginAttemptService';
+import { Preferences } from '@capacitor/preferences';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+
+interface BlockedUser {
+  id: number;
+  email: string;
+  username: string;
+  isBlocked: boolean;
+  LoginAttempt?: {
+    attempts: number;
+    blocked_until: string | null;
+  };
+}
 
 interface Props { isOpen: boolean }
 const props = defineProps<Props>();
 const emit = defineEmits(['close']);
 
-const blocked = ref<Array<{ email: string; attempts: number; blocked_until: Date }>>([]);
+const blocked = ref<BlockedUser[]>([]);
 const loading = ref(false);
 const error = ref('');
 
@@ -135,10 +148,33 @@ const loadBlocked = async () => {
   loading.value = true;
   error.value = '';
   try {
-    blocked.value = await loginAttemptService.getBlockedAttempts();
+    const { value: token } = await Preferences.get({ key: 'auth_token' });
+    if (!token) throw new Error('Non authentifié');
+
+    console.log('🔑 Token:', token.substring(0, 20) + '...');
+    console.log('📡 Calling:', `${API_BASE_URL}/users/blocked`);
+
+    const response = await fetch(`${API_BASE_URL}/users/blocked`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    console.log('📊 Response status:', response.status, response.statusText);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Erreur inconnue' }));
+      console.error('❌ Error response:', errorData);
+      throw new Error(errorData.message || `Erreur HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('✅ Data received:', data);
+    blocked.value = data;
   } catch (err) {
-    console.error(err);
-    error.value = 'Erreur lors du chargement des données.';
+    console.error('💥 Exception:', err);
+    error.value = err instanceof Error ? err.message : 'Erreur lors du chargement des données.';
   } finally {
     loading.value = false;
   }
@@ -148,10 +184,11 @@ onMounted(() => {
   loadBlocked();
 });
 
-const formatDate = (d: Date) => {
-  if (!(d instanceof Date)) return '--';
-  // Formatage court pour mobile : "3 fév. à 14:30"
-  return d.toLocaleString('fr-FR', {
+const formatDate = (d: Date | string | null | undefined) => {
+  if (!d) return '--';
+  const date = typeof d === 'string' ? new Date(d) : d;
+  if (!(date instanceof Date) || isNaN(date.getTime())) return '--';
+  return date.toLocaleString('fr-FR', {
     day: 'numeric',
     month: 'short',
     hour: '2-digit',
@@ -159,10 +196,34 @@ const formatDate = (d: Date) => {
   });
 };
 
-const unblock = async (email: string) => {
+const unblock = async (user: BlockedUser) => {
   try {
-    await loginAttemptService.resetAttempt(email);
-    await loadBlocked(); // Rafraichir la liste
+    const { value: token } = await Preferences.get({ key: 'auth_token' });
+    if (!token) throw new Error('Non authentifié');
+
+    // Débloquer l'utilisateur
+    const response = await fetch(`${API_BASE_URL}/users/${user.id}/unblock`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) throw new Error('Erreur lors du déblocage');
+
+    // Réinitialiser les tentatives si nécessaire
+    if (user.LoginAttempt) {
+      await fetch(`${API_BASE_URL}/auth/reset-attempts/${user.id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+    }
+
+    await loadBlocked(); // Rafraîchir la liste
   } catch (err) {
     console.error(err);
     error.value = 'Échec du déblocage.';

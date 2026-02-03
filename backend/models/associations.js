@@ -5,8 +5,22 @@ import Entreprise from './Entreprise.js';
 import PointStatut from './PointStatut.js';
 import PointImage from './PointImage.js';
 import PointHisto from './PointHisto.js';
+import User from './User.js';
+import LoginAttempt from './LoginAttempt.js';
 
 export const setupAssociations = () => {
+  // User hasOne LoginAttempt
+  User.hasOne(LoginAttempt, {
+    foreignKey: 'user_id',
+    as: 'LoginAttempt'
+  });
+
+  // LoginAttempt belongsTo User
+  LoginAttempt.belongsTo(User, {
+    foreignKey: 'user_id',
+    as: 'user'
+  });
+
   // Point belongsTo Probleme
   Point.belongsTo(Probleme, {
     foreignKey: 'probleme_id',

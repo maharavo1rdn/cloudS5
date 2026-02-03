@@ -32,6 +32,11 @@ const User = sequelize.define('User', {
       key: 'id',
     },
   },
+  isBlocked: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+  },
 }, {
   tableName: 'users',
   timestamps: true,

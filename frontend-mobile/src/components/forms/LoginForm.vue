@@ -86,10 +86,11 @@ import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { IonInput, IonButton, IonSpinner, IonIcon } from '@ionic/vue';
 import { mail, lockClosed, eye, eyeOff, alertCircle } from 'ionicons/icons';
+import { Preferences } from '@capacitor/preferences';
 import { LoginCredentials } from '../../types';
-import authService from '../../services/authService';
 
 const router = useRouter();
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
 
 const form = ref<LoginCredentials>({
   email: 'manager@gmail.com',
@@ -116,7 +117,39 @@ const handleLogin = async () => {
   error.value = '';
 
   try {
-    await authService.login(form.value.email, form.value.password);
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: form.value.email,
+        password: form.value.password,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Erreur de connexion');
+    }
+
+    // Stocker le token et les données utilisateur
+    await Preferences.set({ key: 'auth_token', value: data.token });
+    await Preferences.set({ 
+      key: 'user_data', 
+      value: JSON.stringify({
+        id: data.user.id,
+        username: data.user.username,
+        email: data.user.email,
+      })
+    });
+    
+    // Stocker le rôle
+    const roleName = data.user.role?.name || 'utilisateur';
+    const userRole = (roleName === 'manager' || roleName === 'administrateur') ? 'manager' : 'user';
+    await Preferences.set({ key: 'user_role', value: userRole });
+
     console.log('Connexion réussie');
     
     // Rediriger vers la page d'accueil
