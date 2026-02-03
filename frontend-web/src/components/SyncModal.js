@@ -22,54 +22,59 @@ const SyncModal = ({ isOpen, onClose }) => {
     setSyncResults(null);
 
     try {
-      addLog('Démarrage de la synchronisation...', 'info');
+      addLog('Démarrage de la synchronisation bidirectionnelle...', 'info');
       setSyncProgress(10);
 
-      // Étape 1: Vérifier le statut
-      addLog('Vérification du statut Firebase...', 'info');
-      const statusResponse = await fetch(`${API_BASE_URL}/sync/status`);
-      const status = await statusResponse.json();
+      // Appeler la nouvelle route de synchronisation bidirectionnelle
+      addLog('Synchronisation Firebase ↔ PostgreSQL...', 'info');
+      setSyncProgress(30);
       
-      if (!status.firebase_available) {
-        throw new Error('Firebase non disponible');
-      }
-      
-      addLog(`Firebase disponible - ${status.pending_local_changes} modifications en attente`, 'success');
-      setSyncProgress(25);
-
-      // Étape 2: Récupération (pull) depuis Firebase
-      addLog('Récupération des données depuis Firebase...', 'info');
-      const pullResponse = await fetch(`${API_BASE_URL}/sync/pull`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ since: status.last_sync_at })
-      });
-      
-      const pullResults = await pullResponse.json();
-      addLog(`Pull terminé : ${pullResults.received} éléments traités, ${pullResults.created} créés, ${pullResults.updated} mis à jour`, 'success');
-      setSyncProgress(60);
-
-      // Étape 3: Envoi (push) vers Firebase
-      addLog('Envoi des modifications locales vers Firebase...', 'info');
-      const pushResponse = await fetch(`${API_BASE_URL}/sync/push`, {
+      const syncResponse = await fetch(`${API_BASE_URL}/sync-bidirectional/bidirectional`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
       
-      const pushResults = await pushResponse.json();
-      addLog(`Push terminé : ${pushResults.created.length} créés, ${pushResults.updated.length} mis à jour`, 'success');
+      if (!syncResponse.ok) {
+        throw new Error(`Erreur HTTP ${syncResponse.status}`);
+      }
+      
+      const syncData = await syncResponse.json();
+      
+      if (!syncData.success) {
+        addLog('Synchronisation terminée avec des erreurs', 'warning');
+      }
+      
+      // Logs détaillés
+      addLog(`Firebase → PostgreSQL : ${syncData.firebase_to_postgres.created_signalements} signalements créés`, 'success');
+      addLog(`Firebase → PostgreSQL : ${syncData.firebase_to_postgres.created_points} points créés`, 'success');
+      setSyncProgress(70);
+      
+      addLog(`PostgreSQL → Firebase : ${syncData.postgres_to_firebase.created_firebase} signalements créés`, 'success');
       setSyncProgress(90);
+      
+      // Afficher les erreurs s'il y en a
+      if (syncData.firebase_to_postgres.errors.length > 0) {
+        addLog(`${syncData.firebase_to_postgres.errors.length} erreurs lors de Firebase → PostgreSQL`, 'warning');
+      }
+      if (syncData.postgres_to_firebase.errors.length > 0) {
+        addLog(`${syncData.postgres_to_firebase.errors.length} erreurs lors de PostgreSQL → Firebase`, 'warning');
+      }
 
       // Finalisation
       setSyncResults({
-        pull: pullResults,
-        push: pushResults,
-        timestamp: new Date().toISOString()
+        firebase_to_postgres: syncData.firebase_to_postgres,
+        postgres_to_firebase: syncData.postgres_to_firebase,
+        timestamp: syncData.completed_at
       });
       
-      addLog('Synchronisation terminée avec succès.', 'success');
+      addLog('Synchronisation bidirectionnelle terminée.', 'success');
       setSyncState('success');
       setSyncProgress(100);
+      
+      // Recharger la page après 2 secondes pour afficher les nouvelles données
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
 
     } catch (error) {
       addLog(`Erreur: ${error.message}`, 'error');
@@ -146,17 +151,22 @@ const SyncModal = ({ isOpen, onClose }) => {
               
               <div className="result-stats">
                 <div className="stat-group">
-                  <h4><Download /> Données reçues</h4>
-                  <p>{syncResults.pull?.received || 0} éléments traités</p>
-                  <p>{syncResults.pull?.created || 0} nouveaux créés</p>
-                  <p>{syncResults.pull?.updated || 0} mis à jour</p>
+                  <h4><Download /> Firebase → PostgreSQL</h4>
+                  <p>{syncResults.firebase_to_postgres?.total_firebase || 0} signalements Firebase</p>
+                  <p>{syncResults.firebase_to_postgres?.created_signalements || 0} signalements créés</p>
+                  <p>{syncResults.firebase_to_postgres?.created_points || 0} points créés</p>
+                  {syncResults.firebase_to_postgres?.errors?.length > 0 && (
+                    <p className="error-count">{syncResults.firebase_to_postgres.errors.length} erreurs</p>
+                  )}
                 </div>
                 
                 <div className="stat-group">
-                  <h4><Upload /> Données envoyées</h4>
-                  <p>{syncResults.push?.total || 0} modifications traitées</p>
-                  <p>{syncResults.push?.created?.length || 0} nouveaux créés</p>
-                  <p>{syncResults.push?.updated?.length || 0} mis à jour</p>
+                  <h4><Upload /> PostgreSQL → Firebase</h4>
+                  <p>{syncResults.postgres_to_firebase?.total_postgres || 0} signalements PostgreSQL</p>
+                  <p>{syncResults.postgres_to_firebase?.created_firebase || 0} signalements créés</p>
+                  {syncResults.postgres_to_firebase?.errors?.length > 0 && (
+                    <p className="error-count">{syncResults.postgres_to_firebase.errors.length} erreurs</p>
+                  )}
                 </div>
               </div>
 

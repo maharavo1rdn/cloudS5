@@ -6,16 +6,16 @@ import sequelize from './config/database.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import settingsRoutes from './routes/settings.js';
-import routeRoutes from './routes/routes.js'; // Import des nouvelles routes
-import syncRoutes from './routes/sync.js'; // Import des routes de synchronisation
+import routeRoutes from './routes/routes.js';
+// import syncRoutes from './routes/sync.js'; // Temporairement désactivé
 import { setupAssociations } from './models/associations.js';
 import routesAPIRoutes from './routes/routesAPI.js';
 import statsRoutes from './routes/stats.js';
-import syncRoutes from './routes/sync.js';
 import entreprisesRoutes from './routes/entreprises.js';
 import problemesRoutes from './routes/problemes.js';
 import pointsRoutes from './routes/points.js';
 import signalementsRoutes from './routes/signalements.js';
+import syncBidirectionalRoutes from './routes/syncBidirectional.js';
 
 const app = express();
 
@@ -122,15 +122,14 @@ app.use((req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/settings', settingsRoutes);
-app.use('/api/routes', routeRoutes); // Ajout des routes de gestion des points routiers
-app.use('/api/routes', routesAPIRoutes);  // Routes = travaux routiers
+app.use('/api/routes', routeRoutes);
 app.use('/api/stats', statsRoutes);
-app.use('/api/sync', syncRoutes);
+// app.use('/api/sync', syncRoutes); // Temporairement désactivé - firebase-admin requis
+app.use('/api/sync-bidirectional', syncBidirectionalRoutes); // Nouvelle route de sync bidirectionnelle
 app.use('/api/entreprises', entreprisesRoutes);
 app.use('/api/problemes', problemesRoutes);
 app.use('/api/points', pointsRoutes);
 app.use('/api/signalements', signalementsRoutes);
-app.use('/api/sync', syncRoutes); // Ajout des routes de synchronisation Firebase
 
 // Route de test
 app.get('/', (req, res) => {

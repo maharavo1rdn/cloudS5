@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSignalements } from '../../context/SignalementContext';
 import { 
   Edit2, 
@@ -10,7 +10,9 @@ import {
   Filter,
   AlertCircle,
   Clock,
-  CheckCircle
+  CheckCircle,
+  History,
+  TrendingUp
 } from 'lucide-react';
 import './SignalementsManager.css';
 
@@ -19,6 +21,10 @@ const SignalementsManager = () => {
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({});
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedSignalement, setSelectedSignalement] = useState(null);
+  const [historique, setHistorique] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [newSignalement, setNewSignalement] = useState({
     latitude: -18.8792,
     longitude: 47.5079,
@@ -99,20 +105,78 @@ const SignalementsManager = () => {
     }
   };
 
-  // Status badge
-  const StatusBadge = ({ status }) => {
+  // Calculer le pourcentage d'avancement selon le statut
+  const getAvancementPourcentage = (status) => {
+    const statusMap = {
+      'nouveau': 0,
+      'NOUVEAU': 0,
+      'en_cours': 50,
+      'EN_COURS': 50,
+      'termine': 100,
+      'TERMINE': 100
+    };
+    return statusMap[status] || 0;
+  };
+
+  // Charger l'historique d'un signalement
+  const loadHistory = async (signalementId) => {
+    setLoadingHistory(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:3000/api/signalements/${signalementId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Erreur lors du chargement de l\'historique');
+      }
+      
+      const data = await response.json();
+      setHistorique(data.historiques || []);
+      setSelectedSignalement(data);
+      setShowHistoryModal(true);
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur lors du chargement de l\'historique');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  // Status badge avec pourcentage
+  const StatusBadge = ({ status, showPercentage = false }) => {
     const config = {
       nouveau: { icon: AlertCircle, color: '#ef4444', label: 'Nouveau' },
+      NOUVEAU: { icon: AlertCircle, color: '#ef4444', label: 'Nouveau' },
       en_cours: { icon: Clock, color: '#f59e0b', label: 'En cours' },
-      termine: { icon: CheckCircle, color: '#22c55e', label: 'Terminé' }
+      EN_COURS: { icon: Clock, color: '#f59e0b', label: 'En cours' },
+      termine: { icon: CheckCircle, color: '#22c55e', label: 'Terminé' },
+      TERMINE: { icon: CheckCircle, color: '#22c55e', label: 'Terminé' }
     };
     const { icon: Icon, color, label } = config[status] || config.nouveau;
+    const percentage = getAvancementPourcentage(status);
+    
     return (
       <span className="status-badge" style={{ backgroundColor: color }}>
         <Icon size={14} />
         {label}
+        {showPercentage && <span className="status-percentage">{percentage}%</span>}
       </span>
     );
+  };
+
+  // Formater la date
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   return (
@@ -291,6 +355,23 @@ const SignalementsManager = () => {
                     </select>
                   </div>
                 </div>
+                <div className="form-group">
+                  <label>Date de modification</label>
+                  <input
+                    type="datetime-local"
+                    value={editData.date_modification || ''}
+                    onChange={(e) => setEditData({...editData, date_modification: e.target.value})}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Commentaire</label>
+                  <textarea
+                    value={editData.commentaire || ''}
+                    onChange={(e) => setEditData({...editData, commentaire: e.target.value})}
+                    placeholder="Raison du changement de statut..."
+                    rows="3"
+                  />
+                </div>
                 <div className="form-row">
                   <div className="form-group">
                     <label>Surface (m²)</label>
@@ -332,11 +413,32 @@ const SignalementsManager = () => {
               // Mode affichage
               <>
                 <div className="card-header">
-                  <StatusBadge status={signalement.status} />
+                  <StatusBadge status={signalement.status} showPercentage={true} />
                   <span className="card-date">{signalement.date}</span>
                 </div>
                 <h3 className="card-title">{signalement.description}</h3>
                 <p className="card-address">{signalement.adresse}</p>
+                
+                {/* Barre de progression */}
+                <div className="progress-container">
+                  <div className="progress-bar">
+                    <div 
+                      className="progress-fill" 
+                      style={{ 
+                        width: `${getAvancementPourcentage(signalement.status)}%`,
+                        backgroundColor: 
+                          signalement.status === 'nouveau' || signalement.status === 'NOUVEAU' ? '#ef4444' :
+                          signalement.status === 'en_cours' || signalement.status === 'EN_COURS' ? '#f59e0b' :
+                          '#22c55e'
+                      }}
+                    ></div>
+                  </div>
+                  <span className="progress-text">
+                    <TrendingUp size={14} />
+                    {getAvancementPourcentage(signalement.status)}%
+                  </span>
+                </div>
+
                 <div className="card-details">
                   <div className="detail-item">
                     <span className="detail-label">Surface</span>
@@ -356,6 +458,10 @@ const SignalementsManager = () => {
                     <Edit2 size={16} />
                     Modifier
                   </button>
+                  <button className="btn-history" onClick={() => loadHistory(signalement.id)}>
+                    <History size={16} />
+                    Historique
+                  </button>
                   <button className="btn-delete" onClick={() => handleDelete(signalement.id)}>
                     <Trash2 size={16} />
                     Supprimer
@@ -372,6 +478,60 @@ const SignalementsManager = () => {
           </div>
         )}
       </div>
+
+      {/* Modal Historique */}
+      {showHistoryModal && selectedSignalement && (
+        <div className="modal-overlay">
+          <div className="modal-content modal-large">
+            <div className="modal-header">
+              <h2>Historique - {selectedSignalement.description}</h2>
+              <button className="modal-close" onClick={() => setShowHistoryModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="history-content">
+              {loadingHistory ? (
+                <p>Chargement...</p>
+              ) : historique && historique.length > 0 ? (
+                <div className="history-timeline">
+                  {historique.map((entry, index) => (
+                    <div key={index} className="history-entry">
+                      <div className="history-dot"></div>
+                      <div className="history-card">
+                        <div className="history-header">
+                          <div className="history-status-change">
+                            <StatusBadge status={entry.ancien_statut} />
+                            <span className="history-arrow">→</span>
+                            <StatusBadge status={entry.nouveau_statut} />
+                          </div>
+                          <span className="history-date">{formatDate(entry.date_modification)}</span>
+                        </div>
+                        <div className="history-progress">
+                          <span className="progress-change">
+                            {entry.ancien_avancement}% → {entry.nouveau_avancement}%
+                          </span>
+                        </div>
+                        {entry.user && (
+                          <div className="history-user">
+                            Par: {entry.user.nom} {entry.user.prenom}
+                          </div>
+                        )}
+                        {entry.commentaire && (
+                          <div className="history-comment">
+                            {entry.commentaire}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="no-history">Aucun historique de modification</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
 
     </div>
