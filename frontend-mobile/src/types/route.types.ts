@@ -15,7 +15,7 @@ export interface Entreprise {
   created_at: Date;
 }
 
-export type PointStatut = 'NOUVEAU' | 'EN_COURS' | 'TERMINE';
+export type PointStatut = 'A_FAIRE' | 'EN_COURS' | 'TERMINE';
 
 // Chaque Point = un signalement complet (table points dans la DB)
 export interface Point {

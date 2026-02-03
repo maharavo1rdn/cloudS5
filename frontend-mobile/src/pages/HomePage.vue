@@ -191,7 +191,7 @@
             <ion-icon :icon="alertCircle"></ion-icon>
           </div>
           <div class="stat-content">
-            <span class="stat-value">{{ routesByStatus.NOUVEAU }}</span>
+            <span class="stat-value">{{ routesByStatus.A_FAIRE }}</span>
             <span class="stat-label">Nouveaux</span>
           </div>
         </div>
@@ -323,7 +323,7 @@ const filteredRoutes = computed(() => {
 const routesByStatus = computed(() => {
   const routesToCount = filteredRoutes.value;
   return {
-    NOUVEAU: routesToCount.filter(r => r.point_statut === 'NOUVEAU').length,
+    A_FAIRE: routesToCount.filter(r => r.point_statut === 'A_FAIRE').length,
     EN_COURS: routesToCount.filter(r => r.point_statut === 'EN_COURS').length,
     TERMINE: routesToCount.filter(r => r.point_statut === 'TERMINE').length,
   };
@@ -466,36 +466,36 @@ const syncData = async () => {
 
 const displayRouteMarkers = () => {
   if (!map) return;
-  
+
   routeMarkers.forEach(marker => marker.remove());
   routeMarkers = [];
-  
+
   // Use filteredRoutes so markers reflect current filter (mes signalements)
   filteredRoutes.value.forEach(route => {
     if (!map || !route.latitude || !route.longitude) return;
-    
+
     const statusConfig = {
-      NOUVEAU: { 
-        color: '#ef4444', 
+      A_FAIRE: {
+        color: '#ef4444',
         icon: 'alert-circle',
-        label: 'NOUVEAU',
+        label: 'A_FAIRE',
         gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
       },
-      EN_COURS: { 
-        color: '#f59e0b', 
+      EN_COURS: {
+        color: '#f59e0b',
         icon: 'construct',
         label: 'EN COURS',
         gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
       },
-      TERMINE: { 
-        color: '#10b981', 
+      TERMINE: {
+        color: '#10b981',
         icon: 'checkmark-circle',
         label: 'TERMINÉ',
         gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
       }
     };
     
-    const config = statusConfig[route.point_statut] || statusConfig.NOUVEAU;
+    const config = statusConfig[route.point_statut] || statusConfig.A_FAIRE;
     
     const marker = L.marker([route.latitude, route.longitude], {
       icon: L.divIcon({
@@ -706,37 +706,40 @@ const formatDate = (date: Date | undefined): string => {
   return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
 };
 
-const getStatusConfig = (statut: string) => {
+const getStatusConfig = (statut: string | undefined) => {
   const configs: any = {
-    NOUVEAU: { 
-      color: '#ef4444', 
+    A_FAIRE: {
+      color: '#ef4444',
       icon: 'alert-circle',
-      label: 'NOUVEAU',
+      label: 'A_FAIRE',
       gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
     },
-    EN_COURS: { 
-      color: '#f59e0b', 
+    EN_COURS: {
+      color: '#f59e0b',
       icon: 'construct',
       label: 'EN COURS',
       gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
     },
-    TERMINE: { 
-      color: '#10b981', 
+    TERMINE: {
+      color: '#10b981',
       icon: 'checkmark-circle',
       label: 'TERMINÉ',
       gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
     }
   };
-  return configs[statut] || configs.NOUVEAU;
+
+  if (!statut) return configs.A_FAIRE;
+  const key = String(statut).toUpperCase();
+  return configs[key] || configs.A_FAIRE;
 };
 
 const getIconPathForStatus = (statut: string): string => {
   const paths: Record<string, string> = {
-    NOUVEAU: 'M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10zm0-6v-4m0-4h.01',
+    A_FAIRE: 'M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10zm0-6v-4m0-4h.01',
     EN_COURS: 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z',
     TERMINE: 'M22 11.08V12a10 10 0 1 1-5.93-9.14m0 0L22 4 12 14.01 9 11.01'
   };
-  return paths[statut] || paths.NOUVEAU;
+  return paths[statut] || paths.A_FAIRE;
 };
 
 const handleLogout = async () => {

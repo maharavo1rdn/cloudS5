@@ -59,7 +59,7 @@ const routes = [
     probleme_id: 1,
     description: 'Grand nid de poule dangereux sur la route principale',
     superficie: 2.5,
-    statut: 'NOUVEAU',
+    statut: 'A_FAIRE',
     date_creation: admin.firestore.Timestamp.fromDate(new Date('2026-01-15T14:30:00.000Z'))
   },
   {
@@ -92,7 +92,7 @@ const routes = [
     probleme_id: 4,
     description: 'Désagrégation importante de la surface',
     superficie: 12.0,
-    statut: 'NOUVEAU',
+    statut: 'A_FAIRE',
     date_creation: admin.firestore.Timestamp.fromDate(new Date('2026-01-18T13:10:00.000Z'))
   },
   {
@@ -113,7 +113,7 @@ const routes = [
     probleme_id: 6,
     description: 'Ornière profonde suite au passage des camions',
     superficie: 15.0,
-    statut: 'NOUVEAU',
+    statut: 'A_FAIRE',
     date_creation: admin.firestore.Timestamp.fromDate(new Date('2026-01-19T15:45:00.000Z'))
   },
   {
@@ -146,7 +146,7 @@ const routes = [
     probleme_id: 1,
     description: 'Série de petits nids de poule',
     superficie: 4.0,
-    statut: 'NOUVEAU',
+    statut: 'A_FAIRE',
     date_creation: admin.firestore.Timestamp.fromDate(new Date('2026-01-20T09:20:00.000Z'))
   },
   {
@@ -203,13 +203,12 @@ async function seedDatabase() {
 
     // 4. Importer les statuts de point (point_statut)
     const pointStatuts = [
-      { code: 'NOUVEAU', description: 'Signalement créé', niveau: 1 },
+      { code: 'A_FAIRE', description: 'Signalement créé', niveau: 1 },
       { code: 'EN_COURS', description: 'Travaux en cours', niveau: 2 },
-      { code: 'TERMINE', description: 'Travaux terminés', niveau: 3 },
-      { code: 'ACTIF', description: 'Point actif', niveau: 1 }
+      { code: 'TERMINE', description: 'Travaux terminés', niveau: 3 }
     ];
 
-    console.log('🏷️ Importation des statuts de points...');
+    console.log('🏷️ Importation des statuts de points (A_FAIRE / EN_COURS / TERMINE)...');
     for (const ps of pointStatuts) {
       await db.collection('point_statut').doc(ps.code).set(ps);
       console.log(`✅ Statut ${ps.code} importé`);
@@ -219,6 +218,7 @@ async function seedDatabase() {
     console.log('📍 Importation des points (signalements)...');
     for (const route of routes) {
       const matchingPoint = routePoints.find(rp => rp.routeId === route.id);
+      const createdAt = route.date_creation || admin.firestore.Timestamp.now();
       const pointData = {
         // conserver l'id de route comme id du point pour compatibilité
         nom: route.nom || `Signalement ${route.id}`,
@@ -233,11 +233,13 @@ async function seedDatabase() {
         avancement_pourcentage: route.avancement_pourcentage || 0,
         latitude: matchingPoint?.point?.latitude || 0,
         longitude: matchingPoint?.point?.longitude || 0,
-        point_statut: route.statut || 'NOUVEAU',
+        // s'assurer d'utiliser EXACTEMENT les 3 statuts : 'A_FAIRE'|'EN_COURS'|'TERMINE'
+        point_statut: ['A_FAIRE','EN_COURS','TERMINE'].includes(route.statut) ? route.statut : 'A_FAIRE',
         created_by: route.user_id || route.user_id || 'unknown',
-        created_at: route.date_creation || admin.firestore.Timestamp.now()
+        created_at: createdAt,
+        // set updated_at = created_at pour éviter undefined (améliore la logique de sync)
+        updated_at: createdAt
       };
-
       // Use route.id as doc id to keep references stable
       await db.collection('points').doc(route.id).set(pointData);
       console.log(`✅ Point (signalement) ${route.id} importé`);

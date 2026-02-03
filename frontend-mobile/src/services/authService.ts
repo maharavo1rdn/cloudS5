@@ -26,7 +26,6 @@ class AuthService {
 
   async login(email: string, password: string): Promise<FirebaseAuthResponse> {
     try {
-      // Check login attempts in Firestore first
       const attempt = await loginAttemptService.getAttempt(email);
       if (attempt && attempt.blocked_until) {
         const blockedUntil = attempt.blocked_until?.toDate ? attempt.blocked_until.toDate() : new Date(attempt.blocked_until);
@@ -168,7 +167,7 @@ class AuthService {
 
   async isManager(): Promise<boolean> {
     const userData = await this.getUserData();
-    return userData?.email === 'admin@gmail.com';
+    return userData?.email === 'admin@gmail.com' || userData?.role === 'manager';
   }
 
   // Vérifier la connectivité Firestore

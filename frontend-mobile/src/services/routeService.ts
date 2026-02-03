@@ -37,7 +37,7 @@ class RouteService {
         avancement_pourcentage: input.avancement_pourcentage || 0,
         latitude: input.latitude,
         longitude: input.longitude,
-        point_statut: input.point_statut || 'NOUVEAU',
+        point_statut: input.point_statut || 'A_FAIRE',
         created_by: userId,
         created_at: new Date()
       };
@@ -105,7 +105,7 @@ class RouteService {
           probleme: probleme,
           latitude: data.latitude || 0,
           longitude: data.longitude || 0,
-          point_statut: (data.point_statut as PointStatut) || 'NOUVEAU',
+          point_statut: (data.point_statut as PointStatut) || 'A_FAIRE',
           surface_m2: data.surface_m2 || 0,
           budget: data.budget || 0,
           entreprise_id: data.entreprise_id?.toString(),
