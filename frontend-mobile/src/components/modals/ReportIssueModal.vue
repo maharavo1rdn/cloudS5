@@ -479,7 +479,8 @@ const handleSubmit = async () => {
 
   try {
     const userData = await authService.getUserData();
-    if (!userData || !userData.localId) {
+    console.log(userData);
+    if (!userData || !userData.id) {
       throw new Error('Utilisateur non authentifié');
     }
 
@@ -509,7 +510,7 @@ const handleSubmit = async () => {
         date_fin: form.value.date_fin ? new Date(form.value.date_fin) : undefined,
         images: photoBlobs,
       },
-      userData.localId
+      String(userData.id)
     );
 
     success.value = 'Signalement créé avec succès';
