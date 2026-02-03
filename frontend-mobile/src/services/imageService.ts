@@ -24,14 +24,11 @@ class ImageService {
         const uploadResult = await uploadBytes(storageRef, image);
         console.log(`✅ Upload réussi, fullPath: ${uploadResult.ref.fullPath}`);
         
-        // Solution temporaire: Construire l'URL publique Firebase
-        // TODO: Une fois CORS configuré, utiliser getDownloadURL() pour avoir le token
-        const bucket = storage.app.options.storageBucket;
-        const encodedPath = encodeURIComponent(uploadResult.ref.fullPath);
-        const publicURL = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodedPath}?alt=media`;
+        // Récupérer l'URL de téléchargement via Firebase (CORS configuré)
+        const downloadURL = await getDownloadURL(uploadResult.ref);
+        console.log(`🔗 URL de téléchargement: ${downloadURL}`);
         
-        console.log(`🔗 URL publique générée: ${publicURL}`);
-        return publicURL;
+        return downloadURL;
       });
 
       const urls = await Promise.all(uploadPromises);
