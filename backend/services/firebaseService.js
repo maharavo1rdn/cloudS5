@@ -154,6 +154,103 @@ const pointsMap = new Map();
     }
   }
 
+  async syncPointImagesToFirebase(pointFirebaseId, images) {
+    await this.initialize();
+
+    try {
+      const imagesCollection = this.db.collection('points').doc(pointFirebaseId).collection('images');
+      const results = [];
+
+      for (const image of images) {
+        const imageData = {
+          image_url: image.image_url,
+          firebase_url: image.firebase_url || null,
+          created_at: admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        const docRef = await imagesCollection.add(imageData);
+        results.push({ id: docRef.id, local_id: image.id });
+        console.log(`✅ Image ${docRef.id} ajoutée au point ${pointFirebaseId}`);
+      }
+
+      return results;
+    } catch (error) {
+      console.error('❌ Erreur sync images Firebase:', error);
+      throw error;
+    }
+  }
+
+  async syncPointHistoToFirebase(pointFirebaseId, histoData) {
+    await this.initialize();
+
+    try {
+      const histoCollection = this.db.collection('points').doc(pointFirebaseId).collection('historique');
+      
+      const firebaseData = {
+        point_statut_id: histoData.point_statut_id,
+        avancement_pourcentage: histoData.avancement_pourcentage,
+        date: histoData.date || admin.firestore.FieldValue.serverTimestamp()
+      };
+
+      const docRef = await histoCollection.add(firebaseData);
+      console.log(`✅ Historique ${docRef.id} créé pour point ${pointFirebaseId}`);
+      
+      return { firebase_id: docRef.id };
+    } catch (error) {
+      console.error('❌ Erreur sync historique Firebase:', error);
+      throw error;
+    }
+  }
+
+  async getPointImagesFromFirebase(pointFirebaseId) {
+    await this.initialize();
+
+    try {
+      const imagesSnapshot = await this.db
+        .collection('points')
+        .doc(pointFirebaseId)
+        .collection('images')
+        .get();
+
+      const images = imagesSnapshot.docs.map(doc => ({
+        firebase_id: doc.id,
+        ...doc.data(),
+        created_at: doc.data().created_at?.toDate?.()?.toISOString() || doc.data().created_at
+      }));
+
+      console.log(`📥 Récupéré ${images.length} images pour point ${pointFirebaseId}`);
+      return images;
+    } catch (error) {
+      console.error('❌ Erreur récupération images Firebase:', error);
+      return [];
+    }
+  }
+
+  async getPointHistoFromFirebase(pointFirebaseId) {
+    await this.initialize();
+
+    try {
+      const histoSnapshot = await this.db
+        .collection('points')
+        .doc(pointFirebaseId)
+        .collection('historique')
+        .orderBy('date', 'desc')
+        .get();
+
+      const historique = histoSnapshot.docs.map(doc => ({
+        firebase_id: doc.id,
+        ...doc.data(),
+        date: doc.data().date?.toDate?.()?.toISOString() || doc.data().date
+      }));
+
+      console.log(`📥 Récupéré ${historique.length} entrées historique pour point ${pointFirebaseId}`);
+      return historique;
+    } catch (error) {
+      console.error('❌ Erreur récupération historique Firebase:', error);
+      return [];
+    }
+  }
+
   async syncPointsToFirebase(points, operations = {}) {
     const results = { created: [], updated: [], deleted: [], rejected: [] };
 
