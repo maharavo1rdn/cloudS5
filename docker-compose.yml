@@ -24,7 +24,7 @@ services:
       - app-network
 
   postgres:
-    image: postgres:15
+    image: postgres:15-alpine
     environment:
       - POSTGRES_DB=cloud_db
       - POSTGRES_USER=postgres
