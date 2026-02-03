@@ -21,9 +21,10 @@ interface FirebaseError {
 }
 
 class AuthService {
+  // private signInUrl = `${import.meta.env.VITE_API_BASE_URL}/auth/login` || 'http://localhost:3000/auth/login';
+  // private signUpUrl = `${import.meta.env.VITE_API_BASE_URL}/auth/register` || 'http://localhost:3000/auth/register';
   private signInUrl = import.meta.env.SIGN_IN_FIREBASE_URL || 'https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=AIzaSyBLueXEEBaC4KRaPYBQ5RmcGCL5sxzwa6E';
   private signUpUrl = import.meta.env.SIGN_UP_FIREBASE_URL || 'https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=AIzaSyBLueXEEBaC4KRaPYBQ5RmcGCL5sxzwa6E';
-
   async login(email: string, password: string): Promise<FirebaseAuthResponse> {
     try {
       const attempt = await loginAttemptService.getAttempt(email);

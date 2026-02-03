@@ -49,10 +49,12 @@ class RouteService {
       // Upload images si présentes
       if (input.images && input.images.length > 0) {
         const imageUrls = await imageService.uploadImages(pointRef.id, input.images as Blob[]);
+        console.log(`📸 URLs reçues de imageService (${imageUrls.length}):`, imageUrls);
         
         // Créer les documents dans la sous-collection images
         const imagesCollection = collection(db, this.POINTS_COLLECTION, pointRef.id, 'images');
         for (const imageUrl of imageUrls) {
+          console.log(`💾 Stockage dans Firestore: image_url = ${imageUrl}`);
           await addDoc(imagesCollection, {
             image_url: imageUrl,
             firebase_url: imageUrl,
@@ -111,12 +113,25 @@ class RouteService {
     try {
       const imagesSnapshot = await getDocs(collection(db, this.POINTS_COLLECTION, pointId, 'images'));
       
-      return imagesSnapshot.docs.map(doc => ({
-        id: doc.id,
-        point_id: pointId,
-        ...doc.data(),
-        created_at: doc.data().created_at?.toDate?.() || new Date()
-      } as PointImage));
+      const images = imagesSnapshot.docs.map(doc => {
+        const data = doc.data();
+        console.log(`📷 Image lue depuis Firestore:`, {
+          id: doc.id,
+          image_url: data.image_url,
+          firebase_url: data.firebase_url,
+          image_url_type: typeof data.image_url
+        });
+        
+        return {
+          id: doc.id,
+          point_id: pointId,
+          ...data,
+          created_at: data.created_at?.toDate?.() || new Date()
+        } as PointImage;
+      });
+      
+      console.log(`✅ ${images.length} images récupérées pour le point ${pointId}`);
+      return images;
     } catch (error) {
       console.error('❌ Erreur récupération images:', error);
       return [];

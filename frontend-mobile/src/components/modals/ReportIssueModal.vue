@@ -86,8 +86,6 @@
               <ion-select-option value="NOUVEAU">Nouveau</ion-select-option>
               <ion-select-option value="EN_COURS">En cours</ion-select-option>
               <ion-select-option value="TERMINE">Terminé</ion-select-option>
-              <ion-select-option value="ANNULE">Annulé</ion-select-option>
-              <ion-select-option value="EN_ATTENTE">En attente</ion-select-option>
             </ion-select>
           </div>
         </div>
