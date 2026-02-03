@@ -55,7 +55,7 @@ ON CONFLICT (name) DO NOTHING;
 
 -- Insérer des utilisateurs de test
 -- Mot de passe pour user1: password123 (hashé)
--- Mot de passe pour manager: testpass (hashé)
+-- Mot de passe pour manager: password123 (hashé)
 INSERT INTO users (username, email, password, role_id) VALUES
 ('Jean Dupont', 'user@gmail.com', '$2b$10$ZtILaT9EXLGMcj0bah9O4usgz3XG.7MRBhslmBdQDJyb/UPUvSCfO', (SELECT id FROM roles WHERE name = 'utilisateur')),
 ('manager', 'manager@gmail.com', '$2b$10$j6DCBuJAnByRjz0sv0YRguf0AoVZQlG.aKUSfvu2EGMyTD20gyTcS', (SELECT id FROM roles WHERE name = 'manager'))
