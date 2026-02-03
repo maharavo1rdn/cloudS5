@@ -23,8 +23,22 @@ class RouteService {
   private readonly ENTREPRISES_COLLECTION = 'entreprises';
 
   // Créer un signalement (document dans collection 'points')
-  async createRoute(input: CreateRouteInput, userId: string): Promise<Route> {
+  async createRoute(input: CreateRouteInput, userId?: string): Promise<Route> {
     try {
+      // Ensure we always have a creator id (string) to avoid Firestore errors
+      let resolvedUserId = userId as any;
+      if (!resolvedUserId) {
+        try {
+          const ud = await authService.getUserData();
+          resolvedUserId = ud?.id ?? ud?.localId ?? 'unknown';
+          console.log('ℹ️ Resolved user id inside createRoute:', resolvedUserId);
+        } catch (err) {
+          console.warn('⚠️ Could not resolve user id from authService:', err);
+          resolvedUserId = 'unknown';
+        }
+      }
+      const creatorIdStr = String(resolvedUserId);
+
       const pointRef = doc(collection(db, this.POINTS_COLLECTION));
 
       const pointDoc: any = {
@@ -37,7 +51,6 @@ class RouteService {
         date_detection: new Date(),
         date_debut: input.date_debut || null,
         date_fin: input.date_fin || null,
-        // Compute avancement locally for immediate UX (backend will be authoritative)
         avancement_pourcentage: (function(){
           const map:Record<string,number> = { 'A_FAIRE':0, 'EN_COURS':50, 'TERMINE':100, 'NOUVEAU':0 };
           return input.point_statut ? (map[input.point_statut] ?? 0) : (input.avancement_pourcentage || 0);
@@ -45,7 +58,7 @@ class RouteService {
         latitude: input.latitude,
         longitude: input.longitude,
         point_statut: input.point_statut || 'A_FAIRE',
-        created_by: userId,
+        created_by: creatorIdStr,
         created_at: new Date()
       };
 
@@ -91,7 +104,7 @@ class RouteService {
         date_debut: pointDoc.date_debut,
         date_fin: pointDoc.date_fin,
         avancement_pourcentage: pointDoc.avancement_pourcentage,
-        created_by: userId,
+        created_by: String(pointDoc.created_by || creatorIdStr),
         created_at: pointDoc.created_at
       };
 
@@ -189,7 +202,7 @@ class RouteService {
           date_fin: data.date_fin?.toDate?.() || null,
           avancement_pourcentage: data.avancement_pourcentage || 0,
           images: images,
-          created_by: data.created_by || 'unknown',
+          created_by: String(data.created_by || 'unknown'),
           created_at: data.created_at?.toDate?.() || new Date()
         });
       }
