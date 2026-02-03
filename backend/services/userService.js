@@ -28,7 +28,19 @@ class UserService {
 
   // Récupérer les utilisateurs bloqués (Manager)
   static async getBlockedUsers() {
-    const users = await User.findAll({ where: { isBlocked: true }, attributes: { exclude: ['password'] }, order: [['updatedAt', 'DESC']] });
+    const users = await User.findAll({ 
+      where: { isBlocked: true }, 
+      attributes: { exclude: ['password'] }, 
+      order: [['updatedAt', 'DESC']],
+      include: [
+        { 
+          model: LoginAttempt, 
+          as: 'LoginAttempt',
+          attributes: ['attempts', 'blocked_until', 'last_attempt'],
+          required: false
+        }
+      ]
+    });
     return users;
   }
 

@@ -6,9 +6,12 @@ const router = Router();
 
 // Middleware pour vérifier le rôle manager (level >= 5)
 const requireManager = (req, res, next) => {
+  console.log('👤 User check - Level:', req.user?.level, 'Is Manager:', req.user?.level >= 5);
   if (!req.user || req.user.level < 5) {
+    console.log('❌ Accès refusé - Level insuffisant');
     return res.status(403).json({ message: 'Accès refusé. Rôle manager requis.' });
   }
+  console.log('✅ Manager access granted');
   next();
 };
 

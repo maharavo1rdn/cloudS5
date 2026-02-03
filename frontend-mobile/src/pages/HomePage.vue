@@ -286,7 +286,7 @@ import {
 import { logOut, add, personAdd, locate, warning, alertCircle, construct, checkmarkCircle, map as mapIcon, list, person, documentOutline, pencil, refreshCircle, statsChart } from 'ionicons/icons';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import authService from '../services/authService';
+import { Preferences } from '@capacitor/preferences';
 import routeService from '../services/routeService';
 import RegisterUserModal from '../components/modals/RegisterUserModal.vue';
 import ReportIssueModal from '../components/modals/ReportIssueModal.vue';
@@ -339,16 +339,22 @@ const routesByStatus = computed(() => {
 });
 
 onMounted(async () => {
-  const isAuth = await authService.isAuthenticated();
-  if (!isAuth) {
+  // Vérifier authentification
+  const { value: token } = await Preferences.get({ key: 'auth_token' });
+  if (!token) {
     router.replace('/');
     return;
   }
 
-  isManager.value = await authService.isManager();
-  const userData = await authService.getUserData();
-  if (userData && userData.localId) {
-    currentUserId.value = userData.localId;
+  // Vérifier le rôle
+  const { value: role } = await Preferences.get({ key: 'user_role' });
+  isManager.value = role === 'manager';
+  
+  // Récupérer les données utilisateur
+  const { value: userDataStr } = await Preferences.get({ key: 'user_data' });
+  if (userDataStr) {
+    const userData = JSON.parse(userDataStr);
+    currentUserId.value = userData.id?.toString() || '';
   }
   initMap();
   await loadRoutes();
@@ -776,7 +782,9 @@ const getIconPathForStatus = (statut: string): string => {
 };
 
 const handleLogout = async () => {
-  await authService.logout();
+  await Preferences.remove({ key: 'auth_token' });
+  await Preferences.remove({ key: 'user_data' });
+  await Preferences.remove({ key: 'user_role' });
   router.replace('/');
 };
 </script>
