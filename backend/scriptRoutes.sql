@@ -40,6 +40,13 @@ CREATE TABLE points (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE points_images (
+    id SERIAL PRIMARY KEY,
+    point_id INTEGER REFERENCES points(id) ON DELETE CASCADE,
+    image_url VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
 CREATE TABLE points_histo (
     id SERIAL PRIMARY KEY,
     point_id INTEGER REFERENCES points(id),
