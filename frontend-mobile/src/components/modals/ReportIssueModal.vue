@@ -1,5 +1,5 @@
 <template>
-  <ion-modal :is-open="isOpen" @didDismiss="closeModal" :breakpoints="[0, 0.6, 0.9, 1]" :initial-breakpoint="initialBreakpoint">
+  <ion-modal :is-open="isOpen" @didDismiss="closeModal" :breakpoints="[0, 0.6, 0.9, 1]" :initial-breakpoint="0.95" :swipeToClose="false">
     <ion-header>
       <ion-toolbar>
         <ion-title>Nouveau signalement</ion-title>
@@ -75,7 +75,7 @@
           </label>
           <div class="select-container" :class="{ focused: statutFocused }">
             <ion-select
-              v-model="form.statut"
+              v-model="form.point_statut"
               interface="popover"
               :placeholder="getStatutPlaceholder()"
               :disabled="loading"
@@ -86,9 +86,60 @@
               <ion-select-option value="NOUVEAU">Nouveau</ion-select-option>
               <ion-select-option value="EN_COURS">En cours</ion-select-option>
               <ion-select-option value="TERMINE">Terminé</ion-select-option>
-              <ion-select-option value="ANNULE">Annulé</ion-select-option>
-              <ion-select-option value="EN_ATTENTE">En attente</ion-select-option>
             </ion-select>
+          </div>
+        </div>
+
+        <!-- Entreprise (optionnel) -->
+        <div class="input-wrapper">
+          <label class="input-label">
+            <ion-icon :icon="businessOutline" class="label-icon"></ion-icon>
+            <span>Entreprise (optionnel)</span>
+          </label>
+          <div class="select-container" :class="{ focused: entrepriseFocused }">
+            <ion-select
+              v-model="form.entreprise_id"
+              interface="popover"
+              :disabled="loading"
+              @ionFocus="entrepriseFocused = true"
+              @ionBlur="entrepriseFocused = false"
+            >
+              <ion-select-option :value="''">Aucune</ion-select-option>
+              <ion-select-option v-for="e in entreprises" :key="e.id" :value="e.id">{{ e.nom }}</ion-select-option>
+            </ion-select>
+          </div>
+        </div>
+
+        <!-- Dates (Manager only) -->
+        <div v-if="isManager" class="input-wrapper">
+          <label class="input-label">
+            <ion-icon :icon="calendarOutline" class="label-icon"></ion-icon>
+            <span>Date de début</span>
+          </label>
+          <div class="input-container" :class="{ focused: dateDebutFocused }">
+            <ion-input
+              v-model="form.date_debut"
+              type="date"
+              :disabled="loading"
+              @ionFocus="dateDebutFocused = true"
+              @ionBlur="dateDebutFocused = false"
+            ></ion-input>
+          </div>
+        </div>
+
+        <div v-if="isManager" class="input-wrapper">
+          <label class="input-label">
+            <ion-icon :icon="calendarOutline" class="label-icon"></ion-icon>
+            <span>Date de fin</span>
+          </label>
+          <div class="input-container" :class="{ focused: dateFinFocused }">
+            <ion-input
+              v-model="form.date_fin"
+              type="date"
+              :disabled="loading"
+              @ionFocus="dateFinFocused = true"
+              @ionBlur="dateFinFocused = false"
+            ></ion-input>
           </div>
         </div>
 
@@ -126,6 +177,62 @@
               @ionFocus="surfaceFocused = true"
               @ionBlur="surfaceFocused = false"
             ></ion-input>
+          </div>
+        </div>
+
+        <!-- Budget -->
+        <div class="input-wrapper">
+          <label class="input-label">
+            <ion-icon :icon="cashOutline" class="label-icon"></ion-icon>
+            <span>Budget estimé (Ar)</span>
+          </label>
+          <div class="input-container" :class="{ focused: budgetFocused }">
+            <ion-input
+              v-model.number="form.budget"
+              type="number"
+              step="0.01"
+              :disabled="loading"
+              placeholder="0.00"
+              @ionFocus="budgetFocused = true"
+              @ionBlur="budgetFocused = false"
+            ></ion-input>
+          </div>
+        </div>
+
+        <!-- Photos -->
+        <div class="input-wrapper">
+          <label class="input-label">
+            <ion-icon :icon="cameraOutline" class="label-icon"></ion-icon>
+            <span>Photos ({{ selectedPhotos.length }}/5)</span>
+          </label>
+          <div class="photos-container">
+            <div class="photo-grid">
+              <div 
+                v-for="(photo, index) in selectedPhotos" 
+                :key="index"
+                class="photo-item"
+              >
+                <img :src="photo.webPath || photo.dataUrl" alt="Photo" />
+                <ion-button 
+                  fill="clear" 
+                  size="small" 
+                  class="remove-photo-btn"
+                  @click="removePhoto(index)"
+                >
+                  <ion-icon :icon="closeCircle" slot="icon-only"></ion-icon>
+                </ion-button>
+              </div>
+              <button 
+                v-if="selectedPhotos.length < 5"
+                type="button"
+                class="add-photo-btn"
+                @click="addPhoto"
+                :disabled="loading"
+              >
+                <ion-icon :icon="add"></ion-icon>
+                <span>Ajouter une photo</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -194,6 +301,7 @@ import {
   IonSelectOption,
   IonSpinner,
   IonIcon,
+  actionSheetController
 } from '@ionic/vue';
 import {
   close,
@@ -206,10 +314,26 @@ import {
   checkmarkCircle,
   warning,
   flagOutline,
+  cashOutline,
+  businessOutline,
+  calendarOutline,
+  cameraOutline,
+  add,
+  closeCircle,
+  camera,
+  images
 } from 'ionicons/icons';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import routeService from '../../services/routeService';
 import authService from '../../services/authService';
-import { Probleme, RouteStatut } from '../../types/route.types';
+import imageService from '../../services/imageService';
+import { Probleme, PointStatut, Entreprise } from '../../types/route.types';
+
+interface PhotoData {
+  dataUrl: string;
+  webPath?: string;
+  blob?: Blob;
+}
 
 interface Props {
   isOpen: boolean;
@@ -219,29 +343,60 @@ interface Props {
 const props = defineProps<Props>();
 const emit = defineEmits(['close', 'success']);
 
+const isManager = ref(false);
+const selectedPhotos = ref<PhotoData[]>([]);
+
 const form = ref<{
   nom: string;
   description: string;
   probleme_id: string;
-  statut: RouteStatut;
+  point_statut: PointStatut;
   surface_m2: number | undefined;
+  budget: number | undefined;
+  entreprise_id?: string;
+  date_debut?: string;
+  date_fin?: string;
 }>({
   nom: '',
   description: '',
   probleme_id: '',
-  statut: 'NOUVEAU',
+  point_statut: 'A_FAIRE',
   surface_m2: undefined,
+  budget: undefined,
+  entreprise_id: undefined,
+  date_debut: undefined,
+  date_fin: undefined,
 });
 
 const problemes = ref<Probleme[]>([]);
+const entreprises = ref<Entreprise[]>([]);
 const loading = ref(false);
 const error = ref('');
 const success = ref('');
 const nomFocused = ref(false);
 const problemeFocused = ref(false);
 const statutFocused = ref(false);
+const entrepriseFocused = ref(false);
+const dateDebutFocused = ref(false);
+const dateFinFocused = ref(false);
 const descriptionFocused = ref(false);
+
+onMounted(async () => {
+  await loadProblemes();
+  entreprises.value = await routeService.getEntreprises();
+  isManager.value = await authService.isManager();
+});
+
+// Set default date_debut to today when modal opens
+watch(() => props.isOpen, (open) => {
+  if (open) {
+    const today = new Date().toISOString().split('T')[0];
+    if (!form.value.date_debut) form.value.date_debut = today;
+  }
+});
+
 const surfaceFocused = ref(false);
+const budgetFocused = ref(false);
 
 // Responsive initial breakpoint for the modal (full screen on small devices)
 const initialBreakpoint = ref<number>(0.9);
@@ -269,11 +424,13 @@ const statutsDisponibles = [
 ];
 
 const isFormValid = computed(() => {
-  return (
-    form.value.nom.trim() !== '' &&
-    form.value.probleme_id !== '' &&
-    props.currentLocation !== null
-  );
+  if (form.value.nom.trim() === '' || form.value.probleme_id === '' || props.currentLocation === null) return false;
+  if (form.value.date_debut && form.value.date_fin) {
+    const dDeb = new Date(form.value.date_debut);
+    const dFin = new Date(form.value.date_fin);
+    if (dFin < dDeb) return false;
+  }
+  return true;
 });
 
 // Fonction pour obtenir le placeholder du problème
@@ -287,10 +444,10 @@ const getProblemePlaceholder = () => {
 
 // Fonction pour obtenir le placeholder du statut
 const getStatutPlaceholder = () => {
-  if (!form.value.statut) {
+  if (!form.value.point_statut) {
     return 'Sélectionnez un statut';
   }
-  const statut = statutsDisponibles.find(s => s.value === form.value.statut);
+  const statut = statutsDisponibles.find(s => s.value === form.value.point_statut);
   return statut ? statut.label : 'Sélectionnez un statut';
 };
 
@@ -301,14 +458,15 @@ onMounted(async () => {
 const loadProblemes = async () => {
   try {
     problemes.value = await routeService.getProblemes();
+    entreprises.value = await routeService.getEntreprises();
     
     // Si aucun problème n'existe, initialiser les problèmes par défaut
     if (problemes.value.length === 0) {
       await routeService.initializeDefaultProblemes();
       problemes.value = await routeService.getProblemes();
     }
-  } catch (err) {
-    console.error('Erreur lors du chargement des problèmes:', err);
+  } catch (error) {
+    console.error('Erreur lors du chargement des problèmes / entreprises:', error);
   }
 };
 
@@ -325,15 +483,31 @@ const handleSubmit = async () => {
       throw new Error('Utilisateur non authentifié');
     }
 
+    // Convertir les photos en Blobs
+    const photoBlobs: Blob[] = [];
+    for (const photo of selectedPhotos.value) {
+      if (photo.blob) {
+        photoBlobs.push(photo.blob);
+      } else if (photo.dataUrl) {
+        const blob = imageService.dataUrlToBlob(photo.dataUrl);
+        photoBlobs.push(blob);
+      }
+    }
+
     await routeService.createRoute(
       {
         nom: form.value.nom,
         description: form.value.description,
         probleme_id: form.value.probleme_id,
-        statut: form.value.statut,
+        point_statut: form.value.point_statut,
         latitude: props.currentLocation.lat,
         longitude: props.currentLocation.lng,
         surface_m2: form.value.surface_m2,
+        budget: form.value.budget,
+        entreprise_id: form.value.entreprise_id || undefined,
+        date_debut: form.value.date_debut ? new Date(form.value.date_debut) : undefined,
+        date_fin: form.value.date_fin ? new Date(form.value.date_fin) : undefined,
+        images: photoBlobs,
       },
       userData.localId
     );
@@ -354,21 +528,86 @@ const handleSubmit = async () => {
   }
 };
 
+const addPhoto = async () => {
+  try {
+    const actionSheet = await actionSheetController.create({
+      header: 'Ajouter une photo',
+      buttons: [
+        {
+          text: 'Prendre une photo',
+          icon: camera,
+          handler: () => {
+            capturePhoto(CameraSource.Camera);
+          },
+        },
+        {
+          text: 'Choisir depuis la galerie',
+          icon: images,
+          handler: () => {
+            capturePhoto(CameraSource.Photos);
+          },
+        },
+        {
+          text: 'Annuler',
+          icon: close,
+          role: 'cancel',
+        },
+      ],
+    });
+    await actionSheet.present();
+  } catch (error) {
+    console.error('Erreur ouverture action sheet:', error);
+  }
+};
+
+const capturePhoto = async (source: CameraSource) => {
+  try {
+    const image = await Camera.getPhoto({
+      quality: 80,
+      allowEditing: false,
+      resultType: CameraResultType.DataUrl,
+      source: source,
+    });
+
+    if (image.dataUrl) {
+      const blob = imageService.dataUrlToBlob(image.dataUrl);
+      selectedPhotos.value.push({
+        dataUrl: image.dataUrl,
+        webPath: image.webPath,
+        blob: blob,
+      });
+    }
+  } catch (error) {
+    console.error('Erreur capture photo:', error);
+  }
+};
+
+const removePhoto = (index: number) => {
+  selectedPhotos.value.splice(index, 1);
+};
+
 const closeModal = () => {
   form.value = {
     nom: '',
     description: '',
     probleme_id: '',
-    statut: 'NOUVEAU',
+    point_statut: 'A_FAIRE',
     surface_m2: undefined,
+    budget: undefined,
+    entreprise_id: undefined,
+    date_debut: undefined,
+    date_fin: undefined,
   };
+  selectedPhotos.value = [];
   error.value = '';
   success.value = '';
   nomFocused.value = false;
   problemeFocused.value = false;
   statutFocused.value = false;
+  entrepriseFocused.value = false;
   descriptionFocused.value = false;
   surfaceFocused.value = false;
+  budgetFocused.value = false;
   emit('close');
 };
 </script>
@@ -662,6 +901,81 @@ ion-content {
   height: 20px;
 }
 
+.photos-container {
+  margin-top: 8px;
+}
+
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 12px;
+}
+
+.photo-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #e2e8f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.photo-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.remove-photo-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  --background: rgba(239, 68, 68, 0.9);
+  --color: white;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  margin: 0;
+  --padding-start: 0;
+  --padding-end: 0;
+}
+
+.remove-photo-btn ion-icon {
+  font-size: 20px;
+}
+
+.add-photo-btn {
+  aspect-ratio: 1;
+  border-radius: 12px;
+  border: 2px dashed #cbd5e1;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.add-photo-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #475569;
+}
+
+.add-photo-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.add-photo-btn ion-icon {
+  font-size: 24px;
+}
+
 @media (max-width: 640px) {
   .modal-header {
     padding: 12px 0;
@@ -684,6 +998,10 @@ ion-content {
 
   .header-subtitle {
     font-size: 12px;
+  }
+  
+  .photo-grid {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 

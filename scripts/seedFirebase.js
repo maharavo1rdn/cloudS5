@@ -47,23 +47,25 @@ const users = [
 ];
 
 const entreprises = [
-  { id: 1, nom: 'Entreprise A', description: 'Entreprise spécialisée dans les travaux routiers' },
-  { id: 2, nom: 'Entreprise B', description: 'Maintenance et réparation de chaussées' }
+  { id: 1, nom: 'Colas Madgascar ', description: 'Entreprise spécialisée dans les travaux routiers' },
+  { id: 2, nom: 'Batimax Construction', description: 'Maintenance et réparation de chaussées' }
 ];
 
 const routes = [
   {
     id: 'route1',
     user_id: 'user123',
+    budget: 7500000,
     probleme_id: 1,
     description: 'Grand nid de poule dangereux sur la route principale',
     superficie: 2.5,
-    statut: 'NOUVEAU',
+    statut: 'A_FAIRE',
     date_creation: admin.firestore.Timestamp.fromDate(new Date('2026-01-15T14:30:00.000Z'))
   },
   {
     id: 'route2',
     user_id: 'otherUser',
+    budget: 1500000,
     probleme_id: 2,
     description: 'Fissure importante nécessitant réparation urgente',
     superficie: 5.0,
@@ -74,6 +76,7 @@ const routes = [
   {
     id: 'route3',
     user_id: 'user123',
+    budget: 500000,
     probleme_id: 3,
     description: 'Affaissement de la chaussée après les pluies',
     superficie: 8.0,
@@ -85,15 +88,17 @@ const routes = [
   {
     id: 'route4',
     user_id: 'otherUser',
+    budget: 8020000,
     probleme_id: 4,
     description: 'Désagrégation importante de la surface',
     superficie: 12.0,
-    statut: 'NOUVEAU',
+    statut: 'A_FAIRE',
     date_creation: admin.firestore.Timestamp.fromDate(new Date('2026-01-18T13:10:00.000Z'))
   },
   {
     id: 'route5',
     user_id: 'user123',
+    budget: 6900000,
     probleme_id: 5,
     description: 'Bosse créée par le trafic lourd',
     superficie: 3.5,
@@ -104,15 +109,17 @@ const routes = [
   {
     id: 'route6',
     user_id: 'otherUser',
+    budget: 1200000,
     probleme_id: 6,
     description: 'Ornière profonde suite au passage des camions',
     superficie: 15.0,
-    statut: 'NOUVEAU',
+    statut: 'A_FAIRE',
     date_creation: admin.firestore.Timestamp.fromDate(new Date('2026-01-19T15:45:00.000Z'))
   },
   {
     id: 'route7',
     user_id: 'user123',
+    budget: 1500000,
     probleme_id: 7,
     description: 'Éboulement du talus après fortes pluies',
     superficie: 20.0,
@@ -123,6 +130,7 @@ const routes = [
   {
     id: 'route8',
     user_id: 'otherUser',
+    budget: 2000000,
     probleme_id: 8,
     description: 'Végétation envahissant la chaussée',
     superficie: 6.0,
@@ -134,15 +142,17 @@ const routes = [
   {
     id: 'route9',
     user_id: 'user123',
+    budget: 7500000,
     probleme_id: 1,
     description: 'Série de petits nids de poule',
     superficie: 4.0,
-    statut: 'NOUVEAU',
+    statut: 'A_FAIRE',
     date_creation: admin.firestore.Timestamp.fromDate(new Date('2026-01-20T09:20:00.000Z'))
   },
   {
     id: 'route10',
     user_id: 'otherUser',
+    budget: 3500000,
     probleme_id: 2,
     description: 'Fissures en étoile au centre de la route',
     superficie: 3.0,
@@ -191,20 +201,82 @@ async function seedDatabase() {
       console.log(`✅ Entreprise ${entreprise.id} importée`);
     }
 
-    // 4. Importer les routes
-    console.log('🛣️ Importation des signalements...');
-    for (const route of routes) {
-      const routeId = route.id;
-      const { id, ...routeData } = route;
-      await db.collection('routes').doc(routeId).set(routeData);
-      console.log(`✅ Route ${routeId} importée`);
+    // 4. Importer les statuts de point (point_statut)
+    const pointStatuts = [
+      { code: 'A_FAIRE', description: 'Signalement créé', niveau: 1 },
+      { code: 'EN_COURS', description: 'Travaux en cours', niveau: 2 },
+      { code: 'TERMINE', description: 'Travaux terminés', niveau: 3 }
+    ];
+
+    console.log('🏷️ Importation des statuts de points (A_FAIRE / EN_COURS / TERMINE)...');
+    for (const ps of pointStatuts) {
+      await db.collection('point_statut').doc(ps.code).set(ps);
+      console.log(`✅ Statut ${ps.code} importé`);
     }
 
-    // 5. Importer les points des routes
-    console.log('📍 Importation des points géographiques...');
-    for (const { routeId, point } of routePoints) {
-      await db.collection('routes').doc(routeId).collection('points').doc(point.id).set(point);
-      console.log(`✅ Point ${point.id} pour route ${routeId} importé`);
+    // 5. Importer les signalements en tant que documents 'points'
+    console.log('📍 Importation des points (signalements)...');
+    for (const route of routes) {
+      const matchingPoint = routePoints.find(rp => rp.routeId === route.id);
+      const createdAt = route.date_creation || admin.firestore.Timestamp.now();
+      const pointData = {
+        // conserver l'id de route comme id du point pour compatibilité
+        nom: route.nom || `Signalement ${route.id}`,
+        description: route.description || '',
+        probleme_id: route.probleme_id,
+        surface_m2: route.superficie || route.surface_m2 || 0,
+        budget: route.budget || 0,
+        entreprise_id: route.entreprise_id || null,
+        date_detection: route.date_creation || admin.firestore.Timestamp.now(),
+        date_debut: route.date_debut || null,
+        date_fin: route.date_fin || null,
+        avancement_pourcentage: route.avancement_pourcentage || 0,
+        latitude: matchingPoint?.point?.latitude || 0,
+        longitude: matchingPoint?.point?.longitude || 0,
+        // s'assurer d'utiliser EXACTEMENT les 3 statuts : 'A_FAIRE'|'EN_COURS'|'TERMINE'
+        point_statut: ['A_FAIRE','EN_COURS','TERMINE'].includes(route.statut) ? route.statut : 'A_FAIRE',
+        created_by: route.user_id || route.user_id || 'unknown',
+        created_at: createdAt,
+        // set updated_at = created_at pour éviter undefined (améliore la logique de sync)
+        updated_at: createdAt
+      };
+      // Use route.id as doc id to keep references stable
+      await db.collection('points').doc(route.id).set(pointData);
+      console.log(`✅ Point (signalement) ${route.id} importé`);
+
+      // --- Ajout d'exemples : images et historique pour ce point ---
+      try {
+        // Ajout de 1 à 3 images de démonstration stables (picsum) pour éviter les URLs cassées
+        const imagesCount = Math.floor(Math.random() * 3) + 1; // 1..3 images
+        for (let i = 0; i < imagesCount; i++) {
+          const imgUrl = `https://picsum.photos/seed/${route.id}-${i}/800/600`;
+          await db.collection('points').doc(route.id).collection('images').add({
+            image_url: imgUrl,
+            firebase_url: imgUrl,
+            created_at: admin.firestore.Timestamp.now()
+          });
+        }
+
+        console.log(`📸 ${imagesCount} images ajoutées pour ${route.id}`);
+
+        // Historique : entrée initiale 'A_FAIRE' et entrée correspondant au statut actuel
+        const statutMap = { 'A_FAIRE': 0, 'EN_COURS': 50, 'TERMINE': 100 };
+        await db.collection('points').doc(route.id).collection('historique').add({
+          point_statut: 'A_FAIRE',
+          avancement_pourcentage: 0,
+          date: route.date_creation || admin.firestore.Timestamp.now()
+        });
+
+        if (route.statut && route.statut !== 'A_FAIRE') {
+          await db.collection('points').doc(route.id).collection('historique').add({
+            point_statut: route.statut,
+            avancement_pourcentage: statutMap[route.statut] || 0,
+            date: route.date_creation || admin.firestore.Timestamp.now()
+          });
+        }
+      } catch (err) {
+        console.warn('⚠️ Erreur en ajoutant images/historique pour', route.id, err);
+      }
     }
 
     // 6. Importer les settings
@@ -220,28 +292,17 @@ async function seedDatabase() {
     await db.collection('login_attempts').doc(encodeURIComponent('other@example.com')).set({ attempts: 3, last_attempt: admin.firestore.Timestamp.fromDate(new Date(Date.now() - 2 * 60 * 1000)), blocked_until: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 13 * 60 * 1000)) });
     console.log('✅ Tentatives initialisées');
 
-    console.log('🎉 Toutes les données ont été importées avec succès !');
     console.log('');
-    // 6. Importer les settings
-    console.log('⚙️ Importation des settings...');
-    await db.collection('settings').doc('max_login_attempts').set({ code: 'max_login_attempts', value: '3', type: 'number', date: admin.firestore.Timestamp.now() });
-    await db.collection('settings').doc('session_lifetime_hours').set({ code: 'session_lifetime_hours', value: '1', type: 'number', date: admin.firestore.Timestamp.now() });
-    console.log('✅ Settings importés');
-
-    // 7. Initialiser quelques tentatives de connexion pour les tests
-    console.log('🔐 Initialisation des tentatives de connexion...');
-    await db.collection('login_attempts').doc(encodeURIComponent('test@example.com')).set({ attempts: 1, last_attempt: admin.firestore.Timestamp.now(), blocked_until: null });
-    await db.collection('login_attempts').doc(encodeURIComponent('other@example.com')).set({ attempts: 3, last_attempt: admin.firestore.Timestamp.fromDate(new Date(Date.now() - 2 * 60 * 1000)), blocked_until: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 13 * 60 * 1000)) });
-    console.log('✅ Tentatives initialisées');
-
+    console.log('🎉 Toutes les données ont été importées avec succès !');
     console.log('📋 Résumé :');
     console.log(`   • ${problemes.length} types de problèmes`);
     console.log(`   • ${users.length} utilisateurs`);
     console.log(`   • ${entreprises.length} entreprises`);
-    console.log(`   • ${routes.length} signalements`);
-    console.log(`   • ${routePoints.length} points géographiques`);
+    console.log(`   • ${routes.length} signalements (points)`);
+    console.log(`   • 4 statuts de points`);
+    console.log(`   • 3 paramètres de sécurité`);
     console.log('');
-    console.log('🔄 Pensez à modifier HomePage.vue pour utiliser Firebase au lieu des données statiques');
+    console.log('✅ Structure Firebase conforme au schéma SQL (points, problemes, entreprises, point_statut)');
 
   } catch (error) {
     console.error('❌ Erreur lors de l\'importation :', error);

@@ -1,0 +1,8 @@
+# Arrêter tous les conteneurs
+docker-compose down
+
+# Lister les volumes pour vérifier
+docker volume ls
+
+# Supprimer le volume PostgreSQL spécifiquement
+docker volume rm clouds5_postgres_data
