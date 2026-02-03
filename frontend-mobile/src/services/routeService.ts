@@ -311,15 +311,12 @@ class RouteService {
 
       // Appeler l'API backend pour que le serveur effectue le calcul définitif et garde la source de vérité
       try {
-        const token = await authService.getToken();
-        if (token && updates.point_statut !== undefined) {
+        const headers = await authService.getAuthHeader();
+        if (updates.point_statut !== undefined) {
           const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/points/${routeId}`;
           await fetch(apiUrl, {
             method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
+            headers,
             body: JSON.stringify({
               point_statut_code: updates.point_statut,
               date_debut: updates.date_debut,

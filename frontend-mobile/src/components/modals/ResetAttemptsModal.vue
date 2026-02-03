@@ -24,22 +24,22 @@
         <div class="input-wrapper">
           <label class="input-label">
             <ion-icon :icon="mail" class="label-icon"></ion-icon>
-            <span>Adresse email de l'utilisateur</span>
+            <span>ID utilisateur ou adresse email</span>
           </label>
-          <div class="input-container" :class="{ focused: emailFocused }">
+          <div class="input-container" :class="{ focused: inputFocused }">
             <ion-input 
-              v-model="email" 
-              type="email" 
-              placeholder="utilisateur@example.com" 
+              v-model="userIdOrEmail" 
+              type="text" 
+              placeholder="123 ou utilisateur@example.com" 
               required
               :disabled="loading"
-              @ionFocus="emailFocused = true"
-              @ionBlur="emailFocused = false"
+              @ionFocus="inputFocused = true"
+              @ionBlur="inputFocused = false"
             ></ion-input>
           </div>
           <div class="input-hint">
             <ion-icon :icon="informationCircle"></ion-icon>
-            <span>Entrez l'adresse email exacte de l'utilisateur à débloquer</span>
+            <span>Entrez l'ID numérique ou l'email de l'utilisateur à débloquer</span>
           </div>
         </div>
 
@@ -65,7 +65,7 @@
         <ion-button
           type="submit"
           expand="block"
-          :disabled="loading || !email"
+          :disabled="loading || !userIdOrEmail"
           class="submit-button"
         >
           <ion-spinner v-if="loading" name="crescent"></ion-spinner>
@@ -114,27 +114,75 @@ import {
   informationCircle,
   shieldCheckmark
 } from 'ionicons/icons';
-import loginAttemptService from '../../services/loginAttemptService';
+import { Preferences } from '@capacitor/preferences';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
 
 interface Props { isOpen: boolean }
 const props = defineProps<Props>();
 const emit = defineEmits(['close', 'success']);
 
-const email = ref('');
+const userIdOrEmail = ref('');
 const loading = ref(false);
 const error = ref('');
 const success = ref('');
-const emailFocused = ref(false);
+const inputFocused = ref(false);
 
 const handleReset = async () => {
-  if (!email.value) return;
+  if (!userIdOrEmail.value) return;
   loading.value = true;
   error.value = '';
   success.value = '';
 
   try {
-    await loginAttemptService.resetAttempt(email.value);
-    success.value = `Tentatives réinitialisées avec succès pour ${email.value}. L'utilisateur peut maintenant se reconnecter.`;
+    const { value: token } = await Preferences.get({ key: 'auth_token' });
+    if (!token) throw new Error('Non authentifié');
+
+    const userId = parseInt(userIdOrEmail.value, 10);
+    
+    if (!isNaN(userId)) {
+      // C'est un ID valide
+      const response = await fetch(`${API_BASE_URL}/auth/reset-attempts/${userId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) throw new Error('Erreur lors de la réinitialisation');
+
+      success.value = `Tentatives réinitialisées avec succès pour l'utilisateur #${userId}.`;
+    } else {
+      // C'est un email - chercher l'utilisateur d'abord
+      const usersResponse = await fetch(`${API_BASE_URL}/users`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!usersResponse.ok) throw new Error('Erreur lors de la recherche');
+
+      const users = await usersResponse.json();
+      const user = users.find((u: any) => u.email.toLowerCase() === userIdOrEmail.value.toLowerCase());
+      
+      if (user) {
+        const response = await fetch(`${API_BASE_URL}/auth/reset-attempts/${user.id}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) throw new Error('Erreur lors de la réinitialisation');
+
+        success.value = `Tentatives réinitialisées avec succès pour ${user.email}.`;
+      } else {
+        throw new Error('Utilisateur non trouvé');
+      }
+    }
 
     setTimeout(() => {
       emit('success');
@@ -149,10 +197,10 @@ const handleReset = async () => {
 };
 
 const closeModal = () => {
-  email.value = '';
+  userIdOrEmail.value = '';
   error.value = '';
   success.value = '';
-  emailFocused.value = false;
+  inputFocused.value = false;
   emit('close');
 };
 </script>
