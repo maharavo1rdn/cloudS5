@@ -40,6 +40,13 @@ CREATE TABLE points (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE points_histo (
+    id SERIAL PRIMARY KEY,
+    point_id INTEGER REFERENCES points(id),
+    point_statut_id INTEGER REFERENCES point_statut(id),
+    avancement_pourcentage INTEGER DEFAULT 0,
+    date TIMESTAMP DEFAULT NOW()
+);
 
 -- Insertion des 3 statuts essentiels
 INSERT INTO point_statut (code, description, niveau) VALUES
