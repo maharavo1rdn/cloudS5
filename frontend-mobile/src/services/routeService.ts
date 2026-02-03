@@ -15,6 +15,7 @@ import {
 import { db } from '../config/firebase';
 import { Point, Route, Probleme, Entreprise, CreatePointInput, CreateRouteInput, PointStatut, PointImage } from '../types/route.types';
 import imageService from './imageService';
+import authService from './authService';
 
 class RouteService {
   private readonly POINTS_COLLECTION = 'points';
@@ -36,7 +37,11 @@ class RouteService {
         date_detection: new Date(),
         date_debut: input.date_debut || null,
         date_fin: input.date_fin || null,
-        avancement_pourcentage: input.avancement_pourcentage || 0,
+        // Compute avancement locally for immediate UX (backend will be authoritative)
+        avancement_pourcentage: (function(){
+          const map:Record<string,number> = { 'A_FAIRE':0, 'EN_COURS':50, 'TERMINE':100, 'NOUVEAU':0 };
+          return input.point_statut ? (map[input.point_statut] ?? 0) : (input.avancement_pourcentage || 0);
+        })(),
         latitude: input.latitude,
         longitude: input.longitude,
         point_statut: input.point_statut || 'A_FAIRE',
@@ -273,7 +278,7 @@ class RouteService {
   }
 
   // Mettre à jour un point
-  async updateRoute(routeId: string, updates: Partial<Omit<Point, 'id' | 'created_at' | 'created_by' | 'latitude' | 'longitude'>>, newImages?: Blob[]): Promise<void> {
+  async updateRoute(routeId: string, updates: Partial<Omit<Point, 'id' | 'created_at' | 'created_by'>>, newImages?: Blob[]): Promise<void> {
     try {
       const pointRef = doc(db, this.POINTS_COLLECTION, routeId);
       const updateData: any = {
@@ -281,6 +286,19 @@ class RouteService {
         updated_at: new Date(),
       };
       
+      // Si le statut change, calculer l'avancement côté client pour l'affichage immédiat
+      const statutToAvancement: Record<string, number> = {
+        'A_FAIRE': 0,
+        'EN_COURS': 50,
+        'TERMINE': 100,
+        'NOUVEAU': 0
+      };
+
+      if (updates.point_statut !== undefined) {
+        const computed = statutToAvancement[updates.point_statut as string] ?? 0;
+        updateData.avancement_pourcentage = computed;
+      }
+
       // Nettoyer les valeurs undefined
       Object.keys(updateData).forEach(key => {
         if (updateData[key] === undefined) {
@@ -288,7 +306,32 @@ class RouteService {
         }
       });
       
+      // Mettre à jour Firestore pour une UI réactive
       await updateDoc(pointRef, updateData);
+
+      // Appeler l'API backend pour que le serveur effectue le calcul définitif et garde la source de vérité
+      try {
+        const token = await authService.getToken();
+        if (token && updates.point_statut !== undefined) {
+          const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/points/${routeId}`;
+          await fetch(apiUrl, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              point_statut_code: updates.point_statut,
+              date_debut: updates.date_debut,
+              date_fin: updates.date_fin,
+              latitude: updates.latitude,
+              longitude: updates.longitude
+            })
+          });
+        }
+      } catch (err) {
+        console.warn('⚠️ Echec appel API mise à jour point (non bloquant):', err);
+      }
 
       // Upload nouvelles images si présentes
       if (newImages && newImages.length > 0) {
@@ -308,7 +351,7 @@ class RouteService {
       if (updates.point_statut !== undefined || updates.avancement_pourcentage !== undefined) {
         await this.createHistoEntry(routeId, {
           point_statut_id: null, // Mapper si nécessaire
-          avancement_pourcentage: updates.avancement_pourcentage || 0,
+          avancement_pourcentage: updateData.avancement_pourcentage || 0,
           date: new Date()
         });
       }

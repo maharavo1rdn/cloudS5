@@ -9,9 +9,8 @@ import settingsRoutes from './routes/settings.js';
 import routeRoutes from './routes/routes.js'; // Import des nouvelles routes
 import syncRoutes from './routes/sync.js'; // Import des routes de synchronisation
 import { setupAssociations } from './models/associations.js';
-import routesAPIRoutes from './routes/routesAPI.js';
+import routesAPIouRtes from './routes/routesAPI.js';
 import statsRoutes from './routes/stats.js';
-import syncRoutes from './routes/sync.js';
 import entreprisesRoutes from './routes/entreprises.js';
 import problemesRoutes from './routes/problemes.js';
 import pointsRoutes from './routes/points.js';
