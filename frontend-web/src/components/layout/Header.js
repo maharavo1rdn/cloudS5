@@ -8,14 +8,17 @@ import {
   User, 
   Settings,
   Menu,
-  X
+  X,
+  RefreshCw
 } from 'lucide-react';
+import SyncModal from '../../components/SyncModal';
 import './Header.css';
 
 const Header = () => {
   const { user, logout, isManager } = useAuth();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const [showSyncModal, setShowSyncModal] = React.useState(false);
 
   const handleLogout = () => {
     logout();
@@ -51,6 +54,11 @@ const Header = () => {
 
         {/* Actions utilisateur */}
         <div className="header-actions desktop-nav">
+            <button className="btn-sync" onClick={() => setShowSyncModal(true)} title="Synchroniser avec Firebase">
+              <RefreshCw size={16} />
+              Synchroniser
+            </button>
+
           {user ? (
             <div className="user-menu">
               <div className="user-info">
@@ -86,7 +94,7 @@ const Header = () => {
           <Link to="/" className="mobile-nav-link" onClick={() => setMenuOpen(false)}>
             Accueil
           </Link>
-          
+
           {user && isManager() && (
             <>
               <Link to="/manager/signalements" className="mobile-nav-link" onClick={() => setMenuOpen(false)}>
@@ -97,6 +105,11 @@ const Header = () => {
               </Link>
             </>
           )}
+
+          <button className="mobile-nav-link" onClick={() => { setMenuOpen(false); setShowSyncModal(true); }}>
+            <RefreshCw size={16} />
+            Synchroniser
+          </button>
 
           <div className="mobile-divider"></div>
 
@@ -119,6 +132,10 @@ const Header = () => {
             </Link>
           )}
         </div>
+      )}
+
+      {showSyncModal && (
+        <SyncModal isOpen={showSyncModal} onClose={() => setShowSyncModal(false)} />
       )}
     </header>
   );

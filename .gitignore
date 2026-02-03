@@ -18,3 +18,4 @@ sujet/
 # Firebase service account keys
 scripts/*.json
 *.firebase-adminsdk*.json
+backend/config/serviceAccountKey.json

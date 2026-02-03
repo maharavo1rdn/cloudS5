@@ -1,268 +1,459 @@
-import { Router } from 'express';
-import Route from '../models/Route.js';
-import RoutePoint from '../models/RoutePoint.js';
-import Entreprise from '../models/Entreprise.js';
-import Probleme from '../models/Probleme.js';
+import express from 'express';
 import Point from '../models/Point.js';
+import Probleme from '../models/Probleme.js';
+import Entreprise from '../models/Entreprise.js';
 import PointStatut from '../models/PointStatut.js';
-import authenticateToken from '../middleware/auth.js';
+import firebaseService from '../services/firebaseService.js';
+import { Op } from 'sequelize';
 
-const router = Router();
-
-// Définir les associations si pas déjà faites
-if (!Route.associations.probleme) {
-  Route.belongsTo(Probleme, { foreignKey: 'probleme_id', as: 'probleme' });
-}
-if (!Route.associations.entreprise) {
-  Route.belongsTo(Entreprise, { foreignKey: 'entreprise_id', as: 'entreprise' });
-}
-if (!Route.associations.points) {
-  Route.hasMany(RoutePoint, { foreignKey: 'route_id', as: 'points' });
-}
-
-// Support pour la table 'points' ajoutée (utilisée dans les exports/imports ci‑dessous)
-
-// Middleware pour vérifier le rôle manager (level >= 5)
-const requireManager = (req, res, next) => {
-  if (!req.user || req.user.level < 5) {
-    return res.status(403).json({ message: 'Accès refusé. Rôle manager requis.' });
-  }
-  next();
-};
+const router = express.Router();
 
 /**
  * @swagger
  * /api/sync/status:
  *   get:
- *     summary: Vérifier le statut de synchronisation
- *     tags: [Sync]
- *     security:
- *       - bearerAuth: []
+ *     summary: Obtenir le statut de synchronisation
+ *     tags: [Synchronisation]
  *     responses:
  *       200:
  *         description: Statut de synchronisation
- *       401:
- *         description: Non autorisé
- *       403:
- *         description: Accès refusé
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 firebase_available:
+ *                   type: boolean
+ *                 last_sync_at:
+ *                   type: string
+ *                   format: date-time
+ *                 pending_local_changes:
+ *                   type: integer
  */
-router.get('/status', authenticateToken, requireManager, async (req, res) => {
+router.get('/status', async (req, res) => {
   try {
-    // Approximation: nombre de "projets" = distinct probleme_id dans points
-    const totalRoutes = await Point.count({ distinct: true, col: 'probleme_id' });
-    const totalPoints = await Point.count();
+    // Vérifier la disponibilité Firebase
+    let firebaseAvailable = false;
+    try {
+      await firebaseService.initialize();
+      firebaseAvailable = true;
+    } catch (error) {
+      console.warn('Firebase non disponible:', error.message);
+    }
 
-    // Dernier point modifié
-    const lastModified = await Point.findOne({
-      order: [['created_at', 'DESC']],
-      attributes: ['created_at'],
+    // Compter les changements en attente (points modifiés depuis la dernière sync)
+    const pendingChanges = await Point.count({
+      where: {
+        [Op.or]: [
+          { last_synced_at: null },
+          { updated_at: { [Op.gt]: Point.sequelize.col('last_synced_at') } }
+        ]
+      }
+    });
+
+    // Obtenir la dernière synchronisation
+    const lastSyncRecord = await Point.findOne({
+      where: { last_synced_at: { [Op.not]: null } },
+      order: [['last_synced_at', 'DESC']],
+      attributes: ['last_synced_at']
     });
 
     res.json({
-      totalRoutes,
-      totalPoints,
-      lastModified: lastModified?.created_at || null,
-      status: 'ready',
+      firebase_available: firebaseAvailable,
+      last_sync_at: lastSyncRecord?.last_synced_at || null,
+      pending_local_changes: pendingChanges,
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
-    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+    console.error('Erreur statut sync:', error);
+    res.status(500).json({ error: 'Erreur lors de la vérification du statut' });
   }
 });
 
 /**
  * @swagger
- * /api/sync/export:
- *   get:
- *     summary: Exporter toutes les routes pour synchronisation
- *     tags: [Sync]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Données exportées
- */
-router.get('/export', authenticateToken, requireManager, async (req, res) => {
-  try {
-      // Exporter les points et référentiels
-    const points = await Point.findAll({
-      include: [
-        { model: Entreprise, as: 'entreprise', attributes: ['id', 'nom', 'email', 'telephone'] },
-        { model: Probleme, as: 'probleme', attributes: ['id', 'nom', 'description'] },
-        { model: PointStatut, as: 'statut', attributes: ['id', 'code', 'description'] },
-      ],
-      order: [['created_at', 'DESC']],
-    });
-
-    const entreprises = await Entreprise.findAll();
-    const problemes = await Probleme.findAll();
-
-    res.json({
-      exportDate: new Date().toISOString(),
-      data: {
-        points: points.map(p => p.toJSON()),
-        entreprises: entreprises.map(e => e.toJSON()),
-        problemes: problemes.map(p => p.toJSON()),
-      },
-      counts: {
-        points: points.length,
-        entreprises: entreprises.length,
-        problemes: problemes.length,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Erreur serveur', error: error.message });
-  }
-});
-
-/**
- * @swagger
- * /api/sync/firebase:
+ * /api/sync/pull:
  *   post:
- *     summary: Synchroniser les données vers Firebase (stub)
- *     tags: [Sync]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Synchronisation simulée réussie
- */
-router.post('/firebase', authenticateToken, requireManager, async (req, res) => {
-  try {
-    const points = await Point.findAll({ include: [{ model: Probleme, as: 'probleme' }, { model: Entreprise, as: 'entreprise' }, { model: PointStatut, as: 'statut' }] });
-    return res.json({ message: 'Synchronisation simulée', exported: points.length, data: points.map(p => p.toJSON()) });
-  } catch (error) {
-    res.status(500).json({ message: 'Erreur serveur', error: error.message });
-  }
-});
-
-/**
- * @swagger
- * /api/sync/firebase/fetch:
- *   get:
- *     summary: Récupérer les données depuis Firebase (stub)
- *     tags: [Sync]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Récupération simulée réussie
- */
-router.get('/firebase/fetch', authenticateToken, requireManager, async (req, res) => {
-  try {
-    return res.json({ message: 'Récupération simulée', imported: 0, data: [] });
-  } catch (error) {
-    res.status(500).json({ message: 'Erreur serveur', error: error.message });
-  }
-});
-
-/**
- * @swagger
- * /api/sync/import:
- *   post:
- *     summary: Importer des routes depuis une source externe
- *     tags: [Sync]
- *     security:
- *       - bearerAuth: []
+ *     summary: Récupérer les données depuis Firebase
+ *     tags: [Synchronisation]
  *     requestBody:
- *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
  *             properties:
- *               routes:
- *                 type: array
+ *               since:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Récupérer seulement les modifications depuis cette date
  *     responses:
  *       200:
- *         description: Import réussi
+ *         description: Données synchronisées avec succès
  */
-router.post('/import', authenticateToken, requireManager, async (req, res) => {
+router.post('/pull', async (req, res) => {
   try {
-    const { points } = req.body;
+    const { since } = req.body;
+    
+    console.log(`🔄 Début pull Firebase${since ? ` depuis ${since}` : ''}`);
+    
+    // Récupérer les points depuis Firebase
+    const firebasePoints = await firebaseService.getPointsFromFirebase(since);
 
-    if (!points || !Array.isArray(points)) {
-      return res.status(400).json({ message: 'Liste des points requise' });
-    }
+    // Préparer le mapping des statuts Firebase -> SQL
+    const pointStatuts = await PointStatut.findAll();
+    const statutByCode = new Map(pointStatuts.map(ps => [ps.code, ps.id]));
+    const statutIds = new Set(pointStatuts.map(ps => ps.id));
+    const defaultStatutId = statutByCode.get('A_FAIRE') || pointStatuts[0]?.id || null;
 
-    const imported = [];
-    const errors = [];
+    const resolvePointStatutId = (fbPoint) => {
+      // Priorité: id déjà présent et valide
+      if (fbPoint.point_statut_id && statutIds.has(fbPoint.point_statut_id)) {
+        return fbPoint.point_statut_id;
+      }
 
-    for (const data of points) {
+      // Essayer les codes connus (point_statut, statut)
+      const candidates = [fbPoint.point_statut, fbPoint.statut, fbPoint.status];
+      for (const candidate of candidates) {
+        if (!candidate) continue;
+        const normalized = typeof candidate === 'string' ? candidate.toUpperCase() : candidate;
+        if (statutByCode.has(normalized)) {
+          return statutByCode.get(normalized);
+        }
+      }
+
+      return defaultStatutId;
+    };
+    
+    const results = {
+      received: firebasePoints.length,
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      errors: []
+    };
+
+    // Pour chaque point Firebase, l'intégrer en base locale
+    for (const fbPoint of firebasePoints) {
       try {
-        // Créer le point
-        const created = await Point.create({
-          probleme_id: data.probleme_id,
-          surface_m2: data.surface_m2,
-          budget: data.budget,
-          entreprise_id: data.entreprise_id,
-          date_detection: data.date_detection || new Date(),
-          date_debut: data.date_debut,
-          date_fin: data.date_fin,
-          avancement_pourcentage: data.avancement_pourcentage || 0,
-          latitude: data.latitude,
-          longitude: data.longitude,
-          point_statut_id: data.point_statut_id || null,
+        const resolvedPointStatutId = resolvePointStatutId(fbPoint);
+
+        // Chercher si le point existe déjà (via firebase_id)
+        let existingPoint = await Point.findOne({
+          where: { firebase_id: fbPoint.firebase_id }
         });
 
-        imported.push(created.id);
-      } catch (itemError) {
-        errors.push({ data: data, error: itemError.message });
+        if (existingPoint) {
+          // Mettre à jour si le point Firebase est plus récent
+          const fbUpdatedAt = fbPoint.updated_at ? new Date(fbPoint.updated_at) : new Date();
+          const localUpdatedAt = new Date(existingPoint.updated_at);
+          
+          if (fbUpdatedAt > localUpdatedAt) {
+            await existingPoint.update({
+              probleme_id: fbPoint.probleme_id || null,
+              surface_m2: fbPoint.surface_m2 ?? null,
+              budget: fbPoint.budget ?? null,
+              entreprise_id: fbPoint.entreprise_id || null,
+              date_detection: fbPoint.date_detection || existingPoint.date_detection,
+              date_debut: fbPoint.date_debut || null,
+              date_fin: fbPoint.date_fin || null,
+              avancement_pourcentage: fbPoint.avancement_pourcentage ?? existingPoint.avancement_pourcentage,
+              latitude: fbPoint.latitude ?? existingPoint.latitude,
+              longitude: fbPoint.longitude ?? existingPoint.longitude,
+              point_statut_id: resolvedPointStatutId,
+              updated_at: fbUpdatedAt,
+              firebase_id: fbPoint.firebase_id,
+              last_synced_at: new Date()
+            });
+            results.updated++;
+          } else {
+            results.skipped++;
+          }
+        } else {
+          // Avant création, s'assurer que les FK référencées existent (probleme, entreprise)
+          let resolvedProblemeId = fbPoint.probleme_id || null;
+          let resolvedEntrepriseId = fbPoint.entreprise_id || null;
+
+          // Vérifier probleme
+          if (resolvedProblemeId) {
+            const pb = await Probleme.findByPk(resolvedProblemeId);
+            if (!pb) {
+              // Tenter de récupérer la donnée depuis Firebase 'problemes' collection
+              try {
+                const doc = await firebaseService.db.collection('problemes').doc(String(resolvedProblemeId)).get();
+                if (doc.exists) {
+                  const data = doc.data();
+                  const newPb = await Probleme.create({ nom: data.nom || `Probleme ${resolvedProblemeId}`, description: data.description || null });
+                  resolvedProblemeId = newPb.id;
+                } else {
+                  // not found, unset
+                  resolvedProblemeId = null;
+                }
+              } catch (err) {
+                console.warn('Impossible récupérer probleme depuis Firebase', err.message);
+                resolvedProblemeId = null;
+              }
+            }
+          }
+
+          // Vérifier entreprise
+          if (resolvedEntrepriseId) {
+            const ent = await Entreprise.findByPk(resolvedEntrepriseId);
+            if (!ent) {
+              try {
+                const doc = await firebaseService.db.collection('entreprises').doc(String(resolvedEntrepriseId)).get();
+                if (doc.exists) {
+                  const data = doc.data();
+                  const newEnt = await Entreprise.create({ nom: data.nom || `Entreprise ${resolvedEntrepriseId}` });
+                  resolvedEntrepriseId = newEnt.id;
+                } else {
+                  resolvedEntrepriseId = null;
+                }
+              } catch (err) {
+                console.warn('Impossible récupérer entreprise depuis Firebase', err.message);
+                resolvedEntrepriseId = null;
+              }
+            }
+          }
+
+          // Créer nouveau point avec FK résolues
+          await Point.create({
+            probleme_id: resolvedProblemeId,
+            surface_m2: fbPoint.surface_m2 ?? null,
+            budget: fbPoint.budget ?? null,
+            entreprise_id: resolvedEntrepriseId,
+            date_detection: fbPoint.date_detection || new Date(),
+            date_debut: fbPoint.date_debut || null,
+            date_fin: fbPoint.date_fin || null,
+            avancement_pourcentage: fbPoint.avancement_pourcentage ?? 0,
+            latitude: fbPoint.latitude ?? null,
+            longitude: fbPoint.longitude ?? null,
+            point_statut_id: resolvedPointStatutId,
+            firebase_id: fbPoint.firebase_id,
+            created_at: fbPoint.created_at || new Date(),
+            updated_at: fbPoint.updated_at || new Date(),
+            last_synced_at: new Date()
+          });
+          results.created++;
+        }
+      } catch (error) {
+        console.error(`Erreur traitement point ${fbPoint.firebase_id}:`, error);
+        results.errors.push({
+          firebase_id: fbPoint.firebase_id,
+          error: error.message
+        });
       }
     }
 
-    res.json({
-      message: 'Import terminé',
-      imported: imported.length,
-      errors: errors.length,
-      details: { importedIds: imported, errors },
-    });
+    console.log(`✅ Pull terminé: ${results.created} créés, ${results.updated} mis à jour`);
+    res.json(results);
+
   } catch (error) {
-    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+    console.error('Erreur pull Firebase:', error);
+    res.status(500).json({ 
+      error: 'Erreur lors de la récupération depuis Firebase',
+      details: error.message 
+    });
   }
 });
 
 /**
  * @swagger
- * /api/sync/all:
+ * /api/sync/push:
  *   post:
- *     summary: Synchronisation complète
- *     tags: [Sync]
- *     security:
- *       - bearerAuth: []
+ *     summary: Envoyer les données locales vers Firebase
+ *     tags: [Synchronisation]
  *     responses:
  *       200:
- *         description: Données de synchronisation
+ *         description: Données envoyées avec succès
  */
-router.post('/all', authenticateToken, requireManager, async (req, res) => {
+router.post('/push', async (req, res) => {
   try {
-    const points = await Point.findAll({
+    console.log('🔄 Début push vers Firebase');
+    
+    // Récupérer les points locaux modifiés depuis la dernière sync
+    const pendingPoints = await Point.findAll({
+      where: {
+        [Op.or]: [
+          { last_synced_at: null },
+          { updated_at: { [Op.gt]: Point.sequelize.col('last_synced_at') } }
+        ]
+      },
       include: [
-        { model: Entreprise, as: 'entreprise', attributes: ['id', 'nom'] },
-        { model: Probleme, as: 'probleme', attributes: ['id', 'nom'] },
-        { model: PointStatut, as: 'statut' },
-      ],
+        { model: Probleme, as: 'probleme' },
+        { model: Entreprise, as: 'entreprise' },
+        { model: PointStatut, as: 'statut' }
+      ]
     });
 
-    res.json({
-      message: 'Données prêtes pour synchronisation',
-      exportDate: new Date().toISOString(),
-      data: {
-        count: points.length,
-        points: points.map(p => ({
-          id: p.id,
-          probleme: p.probleme?.nom || null,
-          entreprise: p.entreprise?.nom || null,
-          surface_m2: parseFloat(p.surface_m2) || 0,
-          budget: parseFloat(p.budget) || 0,
-          avancement_pourcentage: p.avancement_pourcentage,
-          latitude: parseFloat(p.latitude),
-          longitude: parseFloat(p.longitude),
-          statut: p.statut?.code || null,
-        })),
-      },
-    });
+    const results = {
+      total: pendingPoints.length,
+      created: [],
+      updated: [],
+      rejected: []
+    };
+
+    // Traiter chaque point en attente
+    for (const point of pendingPoints) {
+      try {
+        const operation = point.firebase_id ? 'update' : 'create';
+        
+        // Résoudre le code de statut (push envoie le code lisible dans Firebase)
+        let statutCode = point.statut?.code;
+        if (!statutCode && point.point_statut_id) {
+          const ps = await PointStatut.findByPk(point.point_statut_id);
+          statutCode = ps?.code || null;
+        }
+        statutCode = statutCode || 'A_FAIRE';
+
+        // Préparer les données pour Firebase (exclure les relations Sequelize)
+        const pointData = {
+          id: point.id,
+          firebase_id: point.firebase_id,
+          probleme_id: point.probleme_id,
+          surface_m2: point.surface_m2 ? parseFloat(point.surface_m2) : null,
+          budget: point.budget ? parseFloat(point.budget) : null,
+          entreprise_id: point.entreprise_id,
+          date_detection: point.date_detection,
+          date_debut: point.date_debut,
+          date_fin: point.date_fin,
+          avancement_pourcentage: point.avancement_pourcentage,
+          latitude: point.latitude ? parseFloat(point.latitude) : null,
+          longitude: point.longitude ? parseFloat(point.longitude) : null,
+          // envoyer le code de statut lisible (A_FAIRE|EN_COURS|TERMINE) pour compatibilité Firebase
+          point_statut: statutCode,
+          point_statut_id: point.point_statut_id,
+          created_at: point.created_at,
+          updated_at: point.updated_at
+        };
+
+        // Synchroniser avec Firebase
+        const syncResult = await firebaseService.syncPointToFirebase(pointData, operation);
+        
+        // Mettre à jour l'enregistrement local
+        await point.update({
+          firebase_id: syncResult.firebase_id,
+          last_synced_at: new Date()
+        });
+
+        if (operation === 'create') {
+          results.created.push({
+            local_id: point.id,
+            firebase_id: syncResult.firebase_id
+          });
+        } else {
+          results.updated.push({
+            local_id: point.id,
+            firebase_id: syncResult.firebase_id
+          });
+        }
+
+      } catch (error) {
+        console.error(`Erreur sync point ${point.id}:`, error);
+        results.rejected.push({
+          local_id: point.id,
+          reason: error.message,
+          error: error.code || 'unknown',
+          stack: error.stack
+        });
+      }
+    }
+
+    console.log(`✅ Push terminé: ${results.created.length} créés, ${results.updated.length} mis à jour, ${results.rejected.length} rejetés`);
+    res.json(results);
+
   } catch (error) {
-    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+    console.error('Erreur push Firebase:', error);
+    res.status(500).json({ 
+      error: 'Erreur lors de l\'envoi vers Firebase',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/sync/full:
+ *   post:
+ *     summary: Synchronisation complète bidirectionnelle
+ *     tags: [Synchronisation]
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               force:
+ *                 type: boolean
+ *                 description: Forcer la synchronisation même en cas de conflits
+ *     responses:
+ *       200:
+ *         description: Synchronisation complète terminée
+ */
+router.post('/full', async (req, res) => {
+  try {
+    const { force = false } = req.body;
+    
+    console.log('🔄 Début synchronisation complète');
+    
+    const syncReport = {
+      started_at: new Date().toISOString(),
+      pull: null,
+      push: null,
+      completed_at: null,
+      success: false
+    };
+
+    // Étape 1: Pull (récupérer depuis Firebase)
+    try {
+      const pullResponse = await fetch(`${req.protocol}://${req.get('host')}/api/sync/pull`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ since: force ? null : undefined })
+      });
+      
+      if (pullResponse.ok) {
+        syncReport.pull = await pullResponse.json();
+      } else {
+        throw new Error(`Pull failed: ${pullResponse.status}`);
+      }
+    } catch (error) {
+      syncReport.pull = { error: error.message };
+      if (!force) {
+        throw error;
+      }
+    }
+
+    // Étape 2: Push (envoyer vers Firebase) 
+    try {
+      const pushResponse = await fetch(`${req.protocol}://${req.get('host')}/api/sync/push`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (pushResponse.ok) {
+        syncReport.push = await pushResponse.json();
+      } else {
+        throw new Error(`Push failed: ${pushResponse.status}`);
+      }
+    } catch (error) {
+      syncReport.push = { error: error.message };
+      if (!force) {
+        throw error;
+      }
+    }
+
+    syncReport.completed_at = new Date().toISOString();
+    syncReport.success = !syncReport.pull?.error && !syncReport.push?.error;
+
+    console.log('✅ Synchronisation complète terminée:', syncReport.success ? 'SUCCÈS' : 'ERREURS');
+    res.json(syncReport);
+
+  } catch (error) {
+    console.error('Erreur synchronisation complète:', error);
+    res.status(500).json({ 
+      error: 'Erreur lors de la synchronisation complète',
+      details: error.message 
+    });
   }
 });
 

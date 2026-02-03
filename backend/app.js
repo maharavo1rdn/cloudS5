@@ -7,6 +7,7 @@ import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import settingsRoutes from './routes/settings.js';
 import routeRoutes from './routes/routes.js'; // Import des nouvelles routes
+import syncRoutes from './routes/sync.js'; // Import des routes de synchronisation
 import { setupAssociations } from './models/associations.js';
 import routesAPIRoutes from './routes/routesAPI.js';
 import statsRoutes from './routes/stats.js';
@@ -129,6 +130,7 @@ app.use('/api/entreprises', entreprisesRoutes);
 app.use('/api/problemes', problemesRoutes);
 app.use('/api/points', pointsRoutes);
 app.use('/api/signalements', signalementsRoutes);
+app.use('/api/sync', syncRoutes); // Ajout des routes de synchronisation Firebase
 
 // Route de test
 app.get('/', (req, res) => {
