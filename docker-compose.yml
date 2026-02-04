@@ -36,6 +36,7 @@ services:
       - ./backend/script.sql:/docker-entrypoint-initdb.d/script.sql
       - ./backend/scriptRoutes.sql:/docker-entrypoint-initdb.d/scriptRoutes.sql
       - ./backend/migrations/z_add_firebase_sync_fields.sql:/docker-entrypoint-initdb.d/z_add_firebase_sync_fields.sql
+      - ./backend/migrations/z_add_sync_fields_images_histo.sql:/docker-entrypoint-initdb.d/z_add_sync_fields_images_histo.sql
     networks:
       - app-network
 

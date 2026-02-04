@@ -1,5 +1,19 @@
 import React, { useState } from 'react';
-import { RefreshCw, Upload, Download, CheckCircle, AlertTriangle, X } from 'lucide-react';
+import { 
+  RefreshCw, 
+  Upload, 
+  Download, 
+  CheckCircle, 
+  AlertTriangle, 
+  X, 
+  Cloud, 
+  Database, 
+  Users, 
+  Image as ImageIcon, 
+  FileClock, 
+  Server,
+  ArrowRightLeft
+} from 'lucide-react';
 import './SyncModal.css';
 
 const SyncModal = ({ isOpen, onClose }) => {
@@ -11,7 +25,7 @@ const SyncModal = ({ isOpen, onClose }) => {
   const API_BASE_URL = 'http://localhost:3000/api';
 
   const addLog = (message, type = 'info') => {
-    const timestamp = new Date().toLocaleTimeString();
+    const timestamp = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     setLogs(prev => [...prev, { message, type, timestamp }]);
   };
 
@@ -46,7 +60,7 @@ const SyncModal = ({ isOpen, onClose }) => {
       });
       
       const pullResults = await pullResponse.json();
-      addLog(`Pull terminé : ${pullResults.received} éléments traités, ${pullResults.created} créés, ${pullResults.updated} mis à jour`, 'success');
+      addLog(`Pull terminé : ${pullResults.received} éléments traités`, 'success');
       setSyncProgress(60);
 
       // Étape 3: Envoi (push) vers Firebase
@@ -64,6 +78,10 @@ const SyncModal = ({ isOpen, onClose }) => {
       setSyncResults({
         pull: pullResults,
         push: pushResults,
+        // Mock des objets manquants dans la logique originale pour éviter les crashs UI si l'API ne les renvoie pas
+        users_pull: pullResults.users_pull || { received: 0, created: 0, updated: 0 },
+        users_push: pushResults.users_push || { total: 0, created: 0, updated: 0 },
+        images_histo: pushResults.images_histo || { images: { pulled: 0, pushed: 0 }, historique: { pulled: 0, pushed: 0 } },
         timestamp: new Date().toISOString()
       });
       
@@ -89,98 +107,176 @@ const SyncModal = ({ isOpen, onClose }) => {
 
   return (
     <div className="sync-modal-overlay">
-      <div className="sync-modal">
+      <div className="sync-modal-container">
+        
+        {/* Header */}
         <div className="sync-modal-header">
-          <h2>
-            <RefreshCw className={syncState === 'syncing' ? 'spinning' : ''} />
-            Synchronisation Firebase
-          </h2>
-          <button onClick={onClose} className="close-btn">
-            <X />
+          <div className="header-title">
+            <Cloud className="header-icon" />
+            <span>Synchronisation Cloud</span>
+          </div>
+          <button onClick={onClose} className="close-btn" disabled={syncState === 'syncing'}>
+            <X size={20} />
           </button>
         </div>
 
-        <div className="sync-modal-content">
+        <div className="sync-modal-body">
+          
+          {/* ÉTAT : IDLE (Accueil) */}
           {syncState === 'idle' && (
-            <div className="sync-intro">
-              <div className="sync-info">
-                <h3>Synchronisation bidirectionnelle</h3>
-                <p>Cette action va :</p>
-                <ul>
-                  <li><Download className="icon" /> Récupérer les dernières données depuis Firebase</li>
-                  <li><Upload className="icon" /> Envoyer vos modifications locales vers Firebase</li>
-                  <li><CheckCircle className="icon" /> Résoudre les conflits automatiquement</li>
-                </ul>
+            <div className="state-view idle-view">
+              <div className="hero-section">
+                <div className="hero-icon-circle">
+                  <ArrowRightLeft size={32} />
+                </div>
+                <h2>Prêt à synchroniser ?</h2>
+                <p>Mise à jour des données locales et envoi des modifications vers le serveur.</p>
               </div>
-              <div className="sync-actions">
-                <button onClick={startSync} className="sync-btn primary">
-                  <RefreshCw />
-                  Commencer la synchronisation
-                </button>
+
+              <div className="info-grid">
+                <div className="info-card">
+                  <Database className="card-icon blue" />
+                  <div>
+                    <h4>Données Points</h4>
+                    <span>Import/Export signalements</span>
+                  </div>
+                </div>
+                <div className="info-card">
+                  <Users className="card-icon green" />
+                  <div>
+                    <h4>Utilisateurs</h4>
+                    <span>Sync des profils</span>
+                  </div>
+                </div>
+                <div className="info-card">
+                  <ImageIcon className="card-icon purple" />
+                  <div>
+                    <h4>Médias</h4>
+                    <span>Galerie photos</span>
+                  </div>
+                </div>
+                <div className="info-card">
+                  <FileClock className="card-icon orange" />
+                  <div>
+                    <h4>Historique</h4>
+                    <span>Logs d'activités</span>
+                  </div>
+                </div>
               </div>
+
+              <button onClick={startSync} className="action-btn primary">
+                <RefreshCw size={18} />
+                Lancer la synchronisation
+              </button>
             </div>
           )}
 
+          {/* ÉTAT : SYNCING (En cours) */}
           {syncState === 'syncing' && (
-            <div className="sync-progress">
-              <h3>Synchronisation en cours...</h3>
-              <div className="progress-bar">
+            <div className="state-view syncing-view">
+              <div className="progress-container">
+                <div className="spinner-wrapper">
+                  <RefreshCw className="spinning-icon" size={48} />
+                </div>
+                <h3>Synchronisation en cours...</h3>
+                <span className="progress-percent">{syncProgress}%</span>
+              </div>
+              
+              <div className="progress-track">
                 <div 
                   className="progress-fill" 
                   style={{ width: `${syncProgress}%` }}
                 ></div>
               </div>
-              <span className="progress-text">{syncProgress}%</span>
             </div>
           )}
 
+          {/* ÉTAT : RÉSULTATS (Succès/Erreur) */}
           {(syncState === 'success' || syncState === 'error') && syncResults && (
-            <div className="sync-results">
-              <div className={`result-header ${syncState}`}>
-                {syncState === 'success' ? (
-                  <><CheckCircle /> Synchronisation réussie</>
-                ) : (
-                  <><AlertTriangle /> Synchronisation avec erreurs</>
-                )}
+            <div className="state-view results-view">
+              <div className={`status-banner ${syncState}`}>
+                {syncState === 'success' ? <CheckCircle size={24} /> : <AlertTriangle size={24} />}
+                <h3>{syncState === 'success' ? 'Synchronisation réussie' : 'Erreur rencontrée'}</h3>
               </div>
               
-              <div className="result-stats">
-                <div className="stat-group">
-                  <h4><Download /> Données reçues</h4>
-                  <p>{syncResults.pull?.received || 0} éléments traités</p>
-                  <p>{syncResults.pull?.created || 0} nouveaux créés</p>
-                  <p>{syncResults.pull?.updated || 0} mis à jour</p>
+              <div className="stats-grid">
+                {/* Points */}
+                <div className="stat-box">
+                  <div className="stat-header">
+                    <Database size={16} className="text-blue" /> <span>Points</span>
+                  </div>
+                  <div className="stat-row">
+                    <Download size={12} /> <span className="val">{syncResults.pull?.received || 0}</span>
+                  </div>
+                  <div className="stat-row">
+                    <Upload size={12} /> <span className="val">{syncResults.push?.total || 0}</span>
+                  </div>
                 </div>
-                
-                <div className="stat-group">
-                  <h4><Upload /> Données envoyées</h4>
-                  <p>{syncResults.push?.total || 0} modifications traitées</p>
-                  <p>{syncResults.push?.created?.length || 0} nouveaux créés</p>
-                  <p>{syncResults.push?.updated?.length || 0} mis à jour</p>
+
+                {/* Utilisateurs */}
+                <div className="stat-box">
+                  <div className="stat-header">
+                    <Users size={16} className="text-green" /> <span>Utilisateurs</span>
+                  </div>
+                  <div className="stat-row">
+                    <Download size={12} /> <span className="val">{syncResults.users_pull?.received || 0}</span>
+                  </div>
+                  <div className="stat-row">
+                    <Upload size={12} /> <span className="val">{syncResults.users_push?.total || 0}</span>
+                  </div>
+                </div>
+
+                {/* Images */}
+                <div className="stat-box">
+                  <div className="stat-header">
+                    <ImageIcon size={16} className="text-purple" /> <span>Images</span>
+                  </div>
+                  <div className="stat-row">
+                    <Download size={12} /> <span className="val">{syncResults.images_histo?.images?.pulled || 0}</span>
+                  </div>
+                  <div className="stat-row">
+                    <Upload size={12} /> <span className="val">{syncResults.images_histo?.images?.pushed || 0}</span>
+                  </div>
+                </div>
+
+                {/* Historique */}
+                <div className="stat-box">
+                  <div className="stat-header">
+                    <FileClock size={16} className="text-orange" /> <span>Historique</span>
+                  </div>
+                  <div className="stat-row">
+                    <Download size={12} /> <span className="val">{syncResults.images_histo?.historique?.pulled || 0}</span>
+                  </div>
+                  <div className="stat-row">
+                    <Upload size={12} /> <span className="val">{syncResults.images_histo?.historique?.pushed || 0}</span>
+                  </div>
                 </div>
               </div>
 
-              <div className="sync-actions">
-                <button onClick={resetSync} className="sync-btn secondary">
-                  Nouvelle synchronisation
-                </button>
-              </div>
+              <button onClick={resetSync} className="action-btn outline">
+                Nouvelle synchronisation
+              </button>
             </div>
           )}
 
+          {/* Console de Logs */}
           {logs.length > 0 && (
-            <div className="sync-logs">
-              <h4>Détails de l'opération</h4>
-              <div className="logs-container">
+            <div className="logs-panel">
+              <div className="logs-header">
+                <Server size={14} />
+                <span>Journal d'opérations</span>
+              </div>
+              <div className="logs-scroller">
                 {logs.map((log, index) => (
-                  <div key={index} className={`log-entry ${log.type}`}>
-                    <span className="log-time">{log.timestamp}</span>
-                    <span className="log-message">{log.message}</span>
+                  <div key={index} className={`log-line ${log.type}`}>
+                    <span className="ts">[{log.timestamp}]</span>
+                    <span className="msg">{log.message}</span>
                   </div>
                 ))}
               </div>
             </div>
           )}
+
         </div>
       </div>
     </div>
