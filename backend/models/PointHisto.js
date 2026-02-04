@@ -39,6 +39,11 @@ const PointHisto = sequelize.define('PointHisto', {
     type: DataTypes.STRING,
     allowNull: true,
     comment: 'ID de l\'entrée dans Firestore points_histo'
+  },
+  last_synced_at: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    comment: 'Timestamp de la dernière synchronisation pour cette entrée historique'
   }
 }, {
   tableName: 'points_histo',

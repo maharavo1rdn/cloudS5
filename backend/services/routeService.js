@@ -1,4 +1,5 @@
 import { Op, Sequelize } from 'sequelize';
+import Signalement from '../models/Signalement.js';
 import Point from '../models/Point.js';
 import Probleme from '../models/Probleme.js';
 import Entreprise from '../models/Entreprise.js';
@@ -6,22 +7,12 @@ import PointStatut from '../models/PointStatut.js';
 
 class RouteService {
   /**
-   * Lister les points/routes en travaux (statut 'EN_COURS')
+   * Lister les signalements/routes en travaux
+   * Utilise maintenant la table signalements au lieu de points
    */
   static async getRoutesEnTravaux() {
     try {
-      const enCoursStatut = await PointStatut.findOne({
-        where: { code: 'EN_COURS' }
-      });
-
-      if (!enCoursStatut) {
-        throw new Error('Statut EN_COURS non trouvé');
-      }
-
-      const points = await Point.findAll({
-        // where: { 
-        //   point_statut_id: enCoursStatut.id 
-        // },
+      const signalements = await Signalement.findAll({
         include: [
           {
             model: Probleme,
@@ -32,15 +23,13 @@ class RouteService {
             model: Entreprise,
             as: 'entreprise',
             attributes: ['id', 'nom', 'email', 'telephone']
-          },
-          {
-            model: PointStatut,
-            as: 'statut',
-            attributes: ['id', 'code', 'description']
           }
         ],
         attributes: [
           'id',
+          'nom',
+          'description',
+          'statut',
           'surface_m2',
           'budget',
           'date_detection',
@@ -53,7 +42,7 @@ class RouteService {
         order: [['date_detection', 'DESC']]
       });
 
-      return points;
+      return signalements;
     } catch (error) {
       throw new Error(`Erreur lors de la récupération des routes en travaux: ${error.message}`);
     }
