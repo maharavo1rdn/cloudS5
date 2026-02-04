@@ -8,15 +8,19 @@
           <ion-button v-if="isManager" @click="openRegisterModal" fill="clear">
             <ion-icon :icon="personAdd" slot="icon-only"></ion-icon>
           </ion-button>
-          <ion-button v-if="isManager" @click="syncData" :disabled="isLoadingRoutes" fill="clear" title="Synchroniser les données">
+          <ion-button @click="syncData" :disabled="isLoadingRoutes" fill="clear" title="Rafraîchir les signalements">
             <ion-icon v-if="!isLoadingRoutes" :icon="refreshCircle" slot="icon-only"></ion-icon>
             <ion-spinner v-else name="crescent" slot="icon-only"></ion-spinner>
           </ion-button>
           <ion-button v-if="isManager" @click="showBlockedModal = true" fill="clear" title="Utilisateurs bloqués">
             <ion-icon :icon="warning" slot="icon-only"></ion-icon>
           </ion-button>
-          <ion-button @click="showStatsModal = true" fill="clear" title="Statistiques">
+          <ion-button v-if="isManager" @click="showStatsModal = true" fill="clear" title="Statistiques">
             <ion-icon :icon="statsChart" slot="icon-only"></ion-icon>
+          </ion-button>
+          <ion-button @click="showNotificationsModal = true" fill="clear" title="Notifications" class="notification-btn">
+            <ion-icon :icon="notifications" slot="icon-only"></ion-icon>
+            <ion-badge v-if="notificationCount > 0" class="notification-badge">{{ notificationCount }}</ion-badge>
           </ion-button>
           <ion-button @click="handleLogout" fill="clear">
             <ion-icon :icon="logOut" slot="icon-only"></ion-icon>
@@ -47,6 +51,16 @@
               Liste
             </ion-button>
           </div>
+          <ion-button 
+            v-if="!notificationPermissionGranted"
+            size="small"
+            color="warning"
+            @click="enableNotifications"
+            class="enable-notif-btn"
+          >
+            <ion-icon :icon="notifications" slot="start"></ion-icon>
+            Activer les notifications
+          </ion-button>
           <ion-button 
             :fill="showOnlyMyReports ? 'solid' : 'outline'"
             size="small"
@@ -264,6 +278,11 @@
       :images="selectedRouteImages"
       @close="showPhotoGallery = false"
     />
+
+    <NotificationsModal
+      :is-open="showNotificationsModal"
+      @close="handleNotificationsClose"
+    />
   </ion-page>
 </template>
 
@@ -283,7 +302,7 @@ import {
   IonFabButton,
   IonSpinner,
 } from '@ionic/vue';
-import { logOut, add, personAdd, locate, warning, alertCircle, construct, checkmarkCircle, map as mapIcon, list, person, documentOutline, pencil, refreshCircle, statsChart } from 'ionicons/icons';
+import { logOut, add, personAdd, locate, warning, alertCircle, construct, checkmarkCircle, map as mapIcon, list, person, documentOutline, pencil, refreshCircle, statsChart, notifications } from 'ionicons/icons';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Preferences } from '@capacitor/preferences';
@@ -295,8 +314,10 @@ import ResetAttemptsModal from '../components/modals/ResetAttemptsModal.vue';
 import BlockedUsersModal from '../components/modals/BlockedUsersModal.vue';
 import StatisticsModal from '../components/modals/StatisticsModal.vue';
 import PhotoGalleryModal from '../components/modals/PhotoGalleryModal.vue';
+import NotificationsModal from '../components/modals/NotificationsModal.vue';
 import ConnectivityBanner from '../components/ConnectivityBanner.vue';
 import { Route, PointImage } from '../types/route.types';
+import { notificationService } from '../services/notificationService';
 
 const router = useRouter();
 const mapContainer = ref<HTMLElement | null>(null);
@@ -308,6 +329,9 @@ const showResetModal = ref(false);
 const showBlockedModal = ref(false);
 const showStatsModal = ref(false);
 const showPhotoGallery = ref(false);
+const showNotificationsModal = ref(false);
+const notificationCount = ref(0);
+const notificationPermissionGranted = ref(false);
 const selectedRoute = ref<Route | null>(null);
 const selectedRouteImages = ref<PointImage[]>([]);
 const currentLocation = ref<{ lat: number; lng: number } | null>(null);
@@ -356,8 +380,12 @@ onMounted(async () => {
     const userData = JSON.parse(userDataStr);
     currentUserId.value = userData.id?.toString() || '';
   }
+  
   initMap();
   await loadRoutes();
+  
+  // Initialiser les notifications après avoir chargé l'utilisateur
+  await initializeNotifications();
 });
 
 onUnmounted(() => {
@@ -781,7 +809,50 @@ const getIconPathForStatus = (statut: string): string => {
   return paths[statut] || paths.A_FAIRE;
 };
 
+const handleNotificationsClose = async () => {
+  showNotificationsModal.value = false;
+  // Rafraîchir le compteur après fermeture
+  await updateNotificationCount();
+  console.log('🔔 Modal fermé, compteur mis à jour');
+};
+
+const updateNotificationCount = async () => {
+  const count = notificationService.getUnreadCount();
+  notificationCount.value = count;
+  console.log('🔢 Nombre de notifications non lues:', count);
+};
+
+// Charger les notifications au démarrage
+const initializeNotifications = async () => {
+  if (currentUserId.value) {
+    await notificationService.initialize(currentUserId.value);
+    notificationPermissionGranted.value = notificationService.hasPermission();
+    await updateNotificationCount();
+    
+    // Vérifier les changements périodiquement (toutes les 30 secondes)
+    setInterval(async () => {
+      await notificationService.checkForChanges(currentUserId.value);
+      await updateNotificationCount();
+    }, 30000);
+  }
+};
+
+// Activer les notifications (clic utilisateur requis)
+const enableNotifications = async () => {
+  const granted = await notificationService.requestPermission();
+  notificationPermissionGranted.value = granted;
+  
+  if (granted) {
+    console.log('✅ Notifications activées avec succès');
+  } else {
+    console.warn('⚠️ Notifications refusées par l\'utilisateur');
+  }
+};
+
 const handleLogout = async () => {
+  // Nettoyer le service de notifications
+  notificationService.cleanup();
+  
   await Preferences.remove({ key: 'auth_token' });
   await Preferences.remove({ key: 'user_data' });
   await Preferences.remove({ key: 'user_role' });
@@ -812,6 +883,40 @@ ion-title {
   font-weight: 600;
   font-size: 18px;
   letter-spacing: -0.02em;
+}
+
+/* Bouton de notification avec badge */
+.notification-btn {
+  position: relative;
+}
+
+.notification-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: #ff3b30;
+  color: #ffffff;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+  animation: pulse-badge 2s ease-in-out infinite;
+}
+
+@keyframes pulse-badge {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
 }
 
 /* Toolbar Actions Wrapper - intégré au header */
