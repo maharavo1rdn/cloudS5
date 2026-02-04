@@ -24,6 +24,17 @@ const PointImage = sequelize.define('PointImage', {
     allowNull: true,
     comment: 'URL Firebase Storage si image uploadée là-bas'
   },
+  firebase_id: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    unique: false,
+    comment: 'ID du document Firestore pour cette image'
+  },
+  last_synced_at: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    comment: 'Timestamp de la dernière synchronisation avec Firebase'
+  }
 }, {
   tableName: 'points_images',
   timestamps: true,

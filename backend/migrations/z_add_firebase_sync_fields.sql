@@ -3,6 +3,8 @@
 
 -- Ajouter les colonnes si elles n'existent pas
 ALTER TABLE IF EXISTS points
+  ADD COLUMN IF NOT EXISTS nom VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS description TEXT,
   ADD COLUMN IF NOT EXISTS firebase_id VARCHAR(255),
   ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMP;
 
@@ -13,6 +15,20 @@ CREATE INDEX IF NOT EXISTS idx_points_last_synced ON points(last_synced_at);
 -- Ajouter des commentaires seulement si la colonne existe
 DO $$
 BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'points' AND column_name = 'nom'
+  ) THEN
+    COMMENT ON COLUMN points.nom IS 'Nom/titre du point de signalement';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'points' AND column_name = 'description'
+  ) THEN
+    COMMENT ON COLUMN points.description IS 'Description détaillée du problème';
+  END IF;
+
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_name = 'points' AND column_name = 'firebase_id'

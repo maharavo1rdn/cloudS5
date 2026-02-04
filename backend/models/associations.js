@@ -1,5 +1,7 @@
 // models/associations.js
 import Point from './Point.js';
+import Signalement from './Signalement.js';
+import SignalementHistorique from './SignalementHistorique.js';
 import Probleme from './Probleme.js';
 import Entreprise from './Entreprise.js';
 import PointStatut from './PointStatut.js';

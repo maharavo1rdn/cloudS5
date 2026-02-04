@@ -10,7 +10,34 @@ class FirebaseService {
     if (this.isInitialized) return;
 
     try {
-      // Initialiser Firebase Admin avec les variables d'environnement
+      const gcdPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+
+      // If GOOGLE_APPLICATION_CREDENTIALS is set and file exists, use applicationDefault
+      if (gcdPath) {
+        try {
+          const fs = await import('fs');
+          if (fs.existsSync(gcdPath)) {
+            console.log(`ℹ️ Found service account file at ${gcdPath}`);
+            
+            // Use applicationDefault() which properly handles the service account file
+            admin.initializeApp({
+              credential: admin.credential.applicationDefault()
+            });
+            
+            this.db = admin.firestore();
+            this.isInitialized = true;
+            console.log('✅ Firebase Admin SDK initialisé avec applicationDefault()');
+            return;
+          } else {
+            console.warn(`⚠️ GOOGLE_APPLICATION_CREDENTIALS is set but file not found at ${gcdPath}`);
+          }
+        } catch (err) {
+          console.error('❌ Error initializing Firebase with applicationDefault:', err.message || err);
+          throw err;
+        }
+      }
+      
+      // Fallback: use environment variables
       const firebaseConfig = {
         type: "service_account",
         project_id: process.env.FIREBASE_PROJECT_ID || "clouds5-49c07",
@@ -25,16 +52,8 @@ class FirebaseService {
         client_x509_cert_url: process.env.FIREBASE_CLIENT_CERT_URL
       };
 
-      // If GOOGLE_APPLICATION_CREDENTIALS is set, prefer ADC (mounted service account JSON)
-      if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-        console.log('ℹ️ Found GOOGLE_APPLICATION_CREDENTIALS, using Application Default Credentials');
-        admin.initializeApp({
-          credential: admin.credential.applicationDefault(),
-          databaseURL: `https://${firebaseConfig.project_id}.firebaseio.com`
-        });
-      }
-      // Else if explicit private key provided via env vars, use cert
-      else if (firebaseConfig.private_key) {
+      if (firebaseConfig.private_key) {
+        console.log('ℹ️ Initializing with environment variables');
         admin.initializeApp({
           credential: admin.credential.cert(firebaseConfig),
           databaseURL: `https://${firebaseConfig.project_id}.firebaseio.com`

@@ -25,6 +25,8 @@ CREATE TABLE point_statut(
 
 CREATE TABLE points (
     id SERIAL PRIMARY KEY,
+    nom VARCHAR(255),
+    description TEXT,
     probleme_id INTEGER REFERENCES problemes(id),
     surface_m2 DECIMAL(10,2),
     budget DECIMAL(12,2),
@@ -36,6 +38,8 @@ CREATE TABLE points (
     latitude DECIMAL(10,8),
     longitude DECIMAL(11,8),
     point_statut_id INTEGER REFERENCES point_statut(id),
+    firebase_id VARCHAR(255),
+    last_synced_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -44,6 +48,9 @@ CREATE TABLE points_images (
     id SERIAL PRIMARY KEY,
     point_id INTEGER REFERENCES points(id) ON DELETE CASCADE,
     image_url VARCHAR(255) NOT NULL,
+    firebase_url VARCHAR(500),
+    firebase_id VARCHAR(255),
+    last_synced_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -52,6 +59,8 @@ CREATE TABLE points_histo (
     point_id INTEGER REFERENCES points(id),
     point_statut_id INTEGER REFERENCES point_statut(id),
     avancement_pourcentage INTEGER DEFAULT 0,
+    firebase_id VARCHAR(255),
+    last_synced_at TIMESTAMP,
     date TIMESTAMP DEFAULT NOW()
 );
 
