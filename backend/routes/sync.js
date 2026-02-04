@@ -1,4 +1,5 @@
 import express from 'express';
+import admin from 'firebase-admin';
 import Point from '../models/Point.js';
 import Signalement from '../models/Signalement.js';
 import Probleme from '../models/Probleme.js';
@@ -167,6 +168,8 @@ router.post('/pull', async (req, res) => {
               : (fbPoint.avancement_pourcentage ?? existingPoint.avancement_pourcentage);
 
             await existingPoint.update({
+              nom: fbPoint.nom || existingPoint.nom,
+              description: fbPoint.description || existingPoint.description,
               probleme_id: fbPoint.probleme_id || null,
               surface_m2: fbPoint.surface_m2 ?? null,
               budget: fbPoint.budget ?? null,
@@ -241,6 +244,8 @@ router.post('/pull', async (req, res) => {
             : (fbPoint.avancement_pourcentage ?? 0);
 
           await Point.create({
+            nom: fbPoint.nom || 'Signalement',
+            description: fbPoint.description || null,
             probleme_id: resolvedProblemeId,
             surface_m2: fbPoint.surface_m2 ?? null,
             budget: fbPoint.budget ?? null,
@@ -332,6 +337,8 @@ router.post('/push', async (req, res) => {
         // Préparer les données pour Firebase (exclure les relations Sequelize)
         const pointData = {
           id: point.id,
+          nom: point.nom || 'Signalement',
+          description: point.description || null,
           firebase_id: point.firebase_id,
           probleme_id: point.probleme_id,
           surface_m2: point.surface_m2 ? parseFloat(point.surface_m2) : null,
@@ -404,7 +411,7 @@ router.post('/push', async (req, res) => {
  *       content:
  *         application/json:
  *           schema:
- *             type: object:
+ *             type: object
  *             properties:
  *               force:
  *                 type: boolean
@@ -570,6 +577,12 @@ router.post('/users/pull', async (req, res) => {
       try {
         const fbUser = userDoc.data();
         
+        // Skip si pas d'email (utilisateurs Firebase Auth sans données user)
+        if (!fbUser.email) {
+          console.warn(`⚠️ User Firebase ${userDoc.id} sans email, skip`);
+          continue;
+        }
+        
         // Chercher l'utilisateur par firebase_uid ou email
         let existingUser = await User.findOne({
           where: {
@@ -595,10 +608,13 @@ router.post('/users/pull', async (req, res) => {
             results.updated++;
           }
         } else {
-          // Créer nouvel utilisateur
+          // Créer nouvel utilisateur (username/password requis mais seront NULL - à gérer dans model)
+          // Note: Ces users Firebase ne pourront pas se connecter via web (ils utilisent Firebase Auth mobile)
           await User.create({
             firebase_uid: userDoc.id,
             email: fbUser.email,
+            username: `firebase_${userDoc.id.substring(0, 10)}`, // Username généré pour respecter contrainte NOT NULL
+            password: 'FIREBASE_AUTH_USER', // Placeholder - ne sera jamais utilisé pour login web
             nom: fbUser.nom || '',
             prenom: fbUser.prenom || '',
             level: fbUser.role === 'manager' ? 5 : 1,
@@ -648,7 +664,7 @@ router.post('/users/push', async (req, res) => {
       where: {
         [Op.or]: [
           { last_synced_at: null },
-          { updated_at: { [Op.gt]: User.sequelize.col('last_synced_at') } }
+          { updatedAt: { [Op.gt]: User.sequelize.col('last_synced_at') } }
         ]
       }
     });
@@ -667,8 +683,8 @@ router.post('/users/push', async (req, res) => {
           nom: user.nom || '',
           prenom: user.prenom || '',
           role: user.level >= 5 ? 'manager' : 'user',
-          createdAt: firebaseService.admin.firestore.Timestamp.fromDate(user.created_at || new Date()),
-          updatedAt: firebaseService.admin.firestore.Timestamp.fromDate(user.updated_at || new Date())
+          createdAt: admin.firestore.Timestamp.fromDate(user.createdAt || new Date()),
+          updatedAt: admin.firestore.Timestamp.fromDate(user.updatedAt || new Date())
         };
 
         if (user.firebase_uid) {
@@ -776,15 +792,41 @@ router.post('/images-histo', async (req, res) => {
         const histoSnapshot = await pointRef.collection('historique').get();
         for (const histoDoc of histoSnapshot.docs) {
           const histoData = histoDoc.data();
+
+          // Skip if no point_statut provided
+          if (!histoData.point_statut) {
+            console.warn(`⚠️ Historique Firebase ${histoDoc.id} pour point ${point.id} sans 'point_statut', skip`);
+            results.errors.push({ point_id: point.id, error: `historique ${histoDoc.id} missing point_statut` });
+            continue;
+          }
+          
+          // Extraire le code de point_statut (peut être string ou objet)
+          let statutCode = histoData.point_statut;
+          if (typeof statutCode === 'object' && statutCode !== null) {
+            statutCode = statutCode.code || null;
+          }
+
+          if (!statutCode) {
+            console.warn(`⚠️ Historique Firebase ${histoDoc.id} - point_statut invalide:`, histoData.point_statut);
+            results.errors.push({ point_id: point.id, error: `historique ${histoDoc.id} invalid point_statut` });
+            continue;
+          }
           
           // Récupérer le point_statut_id depuis le code
-          const [pointStatut] = await sequelize.query(
-            'SELECT id FROM point_statut WHERE code = :code',
-            {
-              replacements: { code: histoData.point_statut },
-              type: sequelize.QueryTypes.SELECT
-            }
-          );
+          let pointStatut;
+          try {
+            [pointStatut] = await sequelize.query(
+              'SELECT id FROM point_statut WHERE code = :code',
+              {
+                replacements: { code: statutCode },
+                type: sequelize.QueryTypes.SELECT
+              }
+            );
+          } catch (err) {
+            console.error(`Erreur récup statut pour historique ${histoDoc.id} (point ${point.id}):`, err.message || err);
+            results.errors.push({ point_id: point.id, error: `statut lookup failed for histo ${histoDoc.id}: ${err.message || err}` });
+            continue; // skip this histo
+          }
 
           const [histoExists] = await sequelize.query(
             'SELECT id FROM points_histo WHERE firebase_id = :firebase_id',
@@ -808,6 +850,9 @@ router.post('/images-histo', async (req, res) => {
               }
             );
             results.historique.pulled++;
+          } else if (!pointStatut) {
+            console.warn(`⚠️ Statut inconnu pour historique ${histoDoc.id} (code=${histoData.point_statut})`);
+            results.errors.push({ point_id: point.id, error: `unknown statut ${histoData.point_statut}` });
           }
         }
 
@@ -825,7 +870,7 @@ router.post('/images-histo', async (req, res) => {
             const imgData = {
               image_url: img.image_url,
               firebase_url: img.image_url,
-              created_at: firebaseService.admin.firestore.Timestamp.fromDate(img.created_at || new Date())
+              created_at: admin.firestore.Timestamp.fromDate(img.created_at || new Date())
             };
 
             if (img.firebase_id) {
@@ -860,7 +905,7 @@ router.post('/images-histo', async (req, res) => {
             const histoData = {
               point_statut: histo.statut_code,
               avancement_pourcentage: histo.avancement_pourcentage || 0,
-              date: firebaseService.admin.firestore.Timestamp.fromDate(histo.date || new Date())
+              date: admin.firestore.Timestamp.fromDate(histo.date || new Date())
             };
 
             if (histo.firebase_id) {

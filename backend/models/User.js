@@ -37,9 +37,26 @@ const User = sequelize.define('User', {
     allowNull: false,
     defaultValue: false,
   },
+  firebase_uid: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'UID Firebase Auth de l\'utilisateur'
+  },
+  last_synced_at: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    comment: 'Timestamp de la dernière synchronisation avec Firebase'
+  }
 }, {
   tableName: 'users',
   timestamps: true,
+  indexes: [
+    {
+      unique: true,
+      fields: ['firebase_uid'],
+      name: 'users_firebase_uid_unique'
+    }
+  ]
 });
 
 // Association
