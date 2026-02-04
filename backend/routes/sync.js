@@ -1,5 +1,6 @@
 import express from 'express';
 import Point from '../models/Point.js';
+import Signalement from '../models/Signalement.js';
 import Probleme from '../models/Probleme.js';
 import Entreprise from '../models/Entreprise.js';
 import PointStatut from '../models/PointStatut.js';

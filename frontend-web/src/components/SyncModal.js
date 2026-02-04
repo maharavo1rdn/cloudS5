@@ -36,13 +36,12 @@ const SyncModal = ({ isOpen, onClose }) => {
     setSyncResults(null);
 
     try {
-      addLog('Démarrage de la synchronisation...', 'info');
+      addLog('Démarrage de la synchronisation bidirectionnelle...', 'info');
       setSyncProgress(10);
 
-      // Étape 1: Vérifier le statut
-      addLog('Vérification du statut Firebase...', 'info');
-      const statusResponse = await fetch(`${API_BASE_URL}/sync/status`);
-      const status = await statusResponse.json();
+      // Appeler la nouvelle route de synchronisation bidirectionnelle
+      addLog('Synchronisation Firebase ↔ PostgreSQL...', 'info');
+      setSyncProgress(30);
       
       if (!status.firebase_available) {
         throw new Error('Firebase non disponible');
@@ -70,9 +69,31 @@ const SyncModal = ({ isOpen, onClose }) => {
         headers: { 'Content-Type': 'application/json' }
       });
       
-      const pushResults = await pushResponse.json();
-      addLog(`Push terminé : ${pushResults.created.length} créés, ${pushResults.updated.length} mis à jour`, 'success');
+      if (!syncResponse.ok) {
+        throw new Error(`Erreur HTTP ${syncResponse.status}`);
+      }
+      
+      const syncData = await syncResponse.json();
+      
+      if (!syncData.success) {
+        addLog('Synchronisation terminée avec des erreurs', 'warning');
+      }
+      
+      // Logs détaillés
+      addLog(`Firebase → PostgreSQL : ${syncData.firebase_to_postgres.created_signalements} signalements créés`, 'success');
+      addLog(`Firebase → PostgreSQL : ${syncData.firebase_to_postgres.created_points} points créés`, 'success');
+      setSyncProgress(70);
+      
+      addLog(`PostgreSQL → Firebase : ${syncData.postgres_to_firebase.created_firebase} signalements créés`, 'success');
       setSyncProgress(90);
+      
+      // Afficher les erreurs s'il y en a
+      if (syncData.firebase_to_postgres.errors.length > 0) {
+        addLog(`${syncData.firebase_to_postgres.errors.length} erreurs lors de Firebase → PostgreSQL`, 'warning');
+      }
+      if (syncData.postgres_to_firebase.errors.length > 0) {
+        addLog(`${syncData.postgres_to_firebase.errors.length} erreurs lors de PostgreSQL → Firebase`, 'warning');
+      }
 
       // Finalisation
       setSyncResults({
@@ -85,9 +106,14 @@ const SyncModal = ({ isOpen, onClose }) => {
         timestamp: new Date().toISOString()
       });
       
-      addLog('Synchronisation terminée avec succès.', 'success');
+      addLog('Synchronisation bidirectionnelle terminée.', 'success');
       setSyncState('success');
       setSyncProgress(100);
+      
+      // Recharger la page après 2 secondes pour afficher les nouvelles données
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
 
     } catch (error) {
       addLog(`Erreur: ${error.message}`, 'error');

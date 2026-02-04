@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { mockSignalements, calculateRecapitulatif, simulateDelay } from '../services/mockData';
+import { signalementsAPI } from '../services/api';
+import { calculateRecapitulatif } from '../services/mockData';
 
 const SignalementContext = createContext(null);
 
@@ -22,90 +23,102 @@ export const SignalementProvider = ({ children }) => {
     loadSignalements();
   }, []);
 
-  // Charger les signalements
+  // Charger les signalements depuis l'API
   const loadSignalements = async () => {
     setLoading(true);
     setError(null);
     try {
-      await simulateDelay(300);
-      // Charger depuis localStorage si disponible et non vide, sinon mock
-      const saved = localStorage.getItem('signalements');
-      let data = mockSignalements; // Par défaut, utiliser les données mock
+      const data = await signalementsAPI.getAll();
+      console.log('Signalements chargés depuis l\'API:', data.length, 'signalements');
       
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          // Utiliser localStorage seulement si c'est un tableau non vide
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            data = parsed;
-          }
-        } catch (e) {
-          console.log('localStorage invalide, utilisation des données mock');
-        }
-      }
+      // Transformer les données pour compatibilité avec le frontend
+      const transformed = data.map(s => ({
+        id: s.id,
+        latitude: parseFloat(s.latitude),
+        longitude: parseFloat(s.longitude),
+        date: s.date_detection,
+        status: s.statut.toLowerCase(), // NOUVEAU -> nouveau
+        surface: parseFloat(s.surface_m2) || 0,
+        budget: parseFloat(s.budget) || 0,
+        entreprise: s.entreprise?.nom || null,
+        description: s.nom || s.probleme?.nom || 'Sans description',
+        adresse: s.description || '',
+        probleme: s.probleme?.nom || '',
+        avancement: s.avancement_pourcentage || 0
+      }));
       
-      console.log('Signalements chargés:', data.length, 'points');
-      setSignalements(data);
-      setRecapitulatif(calculateRecapitulatif(data));
+      setSignalements(transformed);
+      setRecapitulatif(calculateRecapitulatif(transformed));
     } catch (err) {
-      setError('Erreur lors du chargement des signalements');
+      setError('Erreur lors du chargement des signalements: ' + err.message);
       console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  // Sauvegarder dans localStorage
-  const saveToStorage = (data) => {
-    localStorage.setItem('signalements', JSON.stringify(data));
-  };
-
   // Ajouter un signalement
   const addSignalement = async (signalementData) => {
     try {
-      await simulateDelay(200);
-      const newSignalement = {
-        ...signalementData,
-        id: Date.now(),
-        date: new Date().toISOString().split('T')[0],
-        status: 'nouveau'
+      // Transformer les données pour l'API
+      const apiData = {
+        nom: signalementData.description,
+        description: signalementData.adresse || '',
+        latitude: signalementData.latitude,
+        longitude: signalementData.longitude,
+        surface_m2: signalementData.surface || 0,
+        budget: signalementData.budget || 0,
+        probleme_id: 1, // À adapter selon le problème sélectionné
+        statut: signalementData.status.toUpperCase(), // nouveau -> NOUVEAU
+        date_detection: new Date().toISOString().split('T')[0]
       };
-      const updated = [...signalements, newSignalement];
-      setSignalements(updated);
-      setRecapitulatif(calculateRecapitulatif(updated));
-      saveToStorage(updated);
+      
+      const newSignalement = await signalementsAPI.create(apiData);
+      
+      // Recharger les données
+      await loadSignalements();
+      
       return newSignalement;
     } catch (err) {
-      throw new Error('Erreur lors de l\'ajout du signalement');
+      throw new Error('Erreur lors de l\'ajout du signalement: ' + err.message);
     }
   };
 
   // Mettre à jour un signalement
   const updateSignalement = async (id, updates) => {
     try {
-      await simulateDelay(200);
-      const updated = signalements.map(s => 
-        s.id === id ? { ...s, ...updates } : s
-      );
-      setSignalements(updated);
-      setRecapitulatif(calculateRecapitulatif(updated));
-      saveToStorage(updated);
-      return updated.find(s => s.id === id);
+      // Transformer les données pour l'API
+      const apiUpdates = {};
+      if (updates.description) apiUpdates.nom = updates.description;
+      if (updates.adresse) apiUpdates.description = updates.adresse;
+      if (updates.status) apiUpdates.statut = updates.status.toUpperCase();
+      if (updates.surface) apiUpdates.surface_m2 = updates.surface;
+      if (updates.budget) apiUpdates.budget = updates.budget;
+      if (updates.latitude) apiUpdates.latitude = updates.latitude;
+      if (updates.longitude) apiUpdates.longitude = updates.longitude;
+      if (updates.date_modification) apiUpdates.date_modification = updates.date_modification;
+      if (updates.commentaire) apiUpdates.commentaire = updates.commentaire;
+      
+      await signalementsAPI.update(id, apiUpdates);
+      
+      // Recharger les données
+      await loadSignalements();
+      
+      return signalements.find(s => s.id === id);
     } catch (err) {
-      throw new Error('Erreur lors de la mise à jour du signalement');
+      throw new Error('Erreur lors de la mise à jour du signalement: ' + err.message);
     }
   };
 
   // Supprimer un signalement
   const deleteSignalement = async (id) => {
     try {
-      await simulateDelay(200);
-      const updated = signalements.filter(s => s.id !== id);
-      setSignalements(updated);
-      setRecapitulatif(calculateRecapitulatif(updated));
-      saveToStorage(updated);
+      await signalementsAPI.delete(id);
+      
+      // Recharger les données
+      await loadSignalements();
     } catch (err) {
-      throw new Error('Erreur lors de la suppression du signalement');
+      throw new Error('Erreur lors de la suppression du signalement: ' + err.message);
     }
   };
 
@@ -114,48 +127,29 @@ export const SignalementProvider = ({ children }) => {
     return updateSignalement(id, { status: newStatus });
   };
 
-  // Synchronisation Firebase (mock)
+  // Synchronisation Firebase
   const syncWithFirebase = async () => {
     try {
       setLoading(true);
-      await simulateDelay(1000);
-      // Simuler une synchronisation
-      console.log('Synchronisation avec Firebase effectuée');
-      return { success: true, message: 'Synchronisation réussie' };
+      // À implémenter selon les besoins de synchronisation
+      console.log('Synchronisation avec Firebase à implémenter');
+      return { success: true, message: 'Synchronisation à implémenter' };
     } catch (err) {
-      throw new Error('Erreur lors de la synchronisation');
+      throw new Error('Erreur lors de la synchronisation: ' + err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Récupérer depuis Firebase (mock)
+  // Récupérer depuis Firebase
   const fetchFromFirebase = async () => {
     try {
       setLoading(true);
-      await simulateDelay(1000);
-      // Simuler la récupération de nouveaux signalements
-      const firebaseSignalements = [
-        {
-          id: Date.now(),
-          latitude: -18.8800,
-          longitude: 47.5180,
-          date: new Date().toISOString().split('T')[0],
-          status: 'nouveau',
-          surface: 100,
-          budget: 0,
-          entreprise: null,
-          description: 'Signalement depuis mobile',
-          adresse: 'Rue inconnue'
-        }
-      ];
-      const updated = [...signalements, ...firebaseSignalements];
-      setSignalements(updated);
-      setRecapitulatif(calculateRecapitulatif(updated));
-      saveToStorage(updated);
-      return { success: true, count: firebaseSignalements.length };
+      // À implémenter selon les besoins de synchronisation
+      await loadSignalements();
+      return { success: true, count: 0 };
     } catch (err) {
-      throw new Error('Erreur lors de la récupération depuis Firebase');
+      throw new Error('Erreur lors de la récupération depuis Firebase: ' + err.message);
     } finally {
       setLoading(false);
     }
