@@ -17,6 +17,22 @@ export interface Entreprise {
 
 export type PointStatut = 'A_FAIRE' | 'EN_COURS' | 'TERMINE';
 
+export interface PointImage {
+  id: string;
+  point_id: string;
+  image_url: string;
+  firebase_url?: string;
+  created_at: Date;
+}
+
+export interface PointHisto {
+  id: string;
+  point_id: string;
+  point_statut_id?: number;
+  avancement_pourcentage: number;
+  date: Date;
+}
+
 // Chaque Point = un signalement complet (table points dans la DB)
 export interface Point {
   id: string;
@@ -46,6 +62,10 @@ export interface Point {
   point_statut: PointStatut;
   avancement_pourcentage: number;
   
+  // Images et historique
+  images?: PointImage[];
+  historique?: PointHisto[];
+  
   // Métadonnées
   created_by: string;
   created_at: Date;
@@ -68,6 +88,7 @@ export interface CreatePointInput {
   date_debut?: Date;
   date_fin?: Date;
   avancement_pourcentage?: number;
+  images?: Blob[]; // Blobs pour l'upload
 }
 
 // Alias pour compatibilité

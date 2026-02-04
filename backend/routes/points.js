@@ -61,15 +61,27 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// Helper mapping status code -> avancement
+const statutToAvancement = {
+  'A_FAIRE': 0,
+  'EN_COURS': 50,
+  'TERMINE': 100,
+  'NOUVEAU': 0
+};
+
 // POST /api/points (Manager)
 router.post('/', authenticateToken, requireManager, async (req, res) => {
   try {
-    const { probleme_id, surface_m2, budget, entreprise_id, date_debut, date_fin, avancement_pourcentage, latitude, longitude, point_statut_code } = req.body;
+    const { probleme_id, surface_m2, budget, entreprise_id, date_debut, date_fin, /* avancement_pourcentage, */ latitude, longitude, point_statut_code } = req.body;
 
     let statutId = null;
+    let computedAvancement = 0;
     if (point_statut_code) {
       const s = await PointStatut.findOne({ where: { code: point_statut_code } });
-      if (s) statutId = s.id;
+      if (s) {
+        statutId = s.id;
+        computedAvancement = statutToAvancement[s.code] ?? 0;
+      }
     }
 
     const point = await Point.create({
@@ -80,7 +92,7 @@ router.post('/', authenticateToken, requireManager, async (req, res) => {
       date_detection: new Date(),
       date_debut,
       date_fin,
-      avancement_pourcentage: avancement_pourcentage || 0,
+      avancement_pourcentage: computedAvancement,
       latitude,
       longitude,
       point_statut_id: statutId
@@ -106,15 +118,17 @@ router.patch('/:id', authenticateToken, requireManager, async (req, res) => {
     const point = await Point.findByPk(req.params.id);
     if (!point) return res.status(404).json({ message: 'Point non trouvé' });
 
-    const { point_statut_code, avancement_pourcentage, latitude, longitude, date_debut, date_fin } = req.body;
+    const { point_statut_code, /* avancement_pourcentage, */ latitude, longitude, date_debut, date_fin } = req.body;
 
     const update = {};
     if (point_statut_code) {
       const s = await PointStatut.findOne({ where: { code: point_statut_code } });
       if (!s) return res.status(400).json({ message: 'Statut inconnu' });
       update.point_statut_id = s.id;
+      // compute avancement server-side according to business rule
+      update.avancement_pourcentage = statutToAvancement[s.code] ?? 0;
     }
-    if (avancement_pourcentage !== undefined) update.avancement_pourcentage = avancement_pourcentage;
+    // Ignore any avancement_pourcentage supplied by client - server computes it
     if (latitude !== undefined) update.latitude = latitude;
     if (longitude !== undefined) update.longitude = longitude;
     if (date_debut !== undefined) update.date_debut = date_debut;

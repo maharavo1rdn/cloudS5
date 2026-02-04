@@ -9,10 +9,13 @@ import {
   query, 
   where, 
   orderBy,
-  Timestamp 
+  Timestamp,
+  addDoc
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { Point, Route, Probleme, Entreprise, CreatePointInput, CreateRouteInput, PointStatut } from '../types/route.types';
+import { Point, Route, Probleme, Entreprise, CreatePointInput, CreateRouteInput, PointStatut, PointImage } from '../types/route.types';
+import imageService from './imageService';
+import authService from './authService';
 
 class RouteService {
   private readonly POINTS_COLLECTION = 'points';
@@ -20,8 +23,22 @@ class RouteService {
   private readonly ENTREPRISES_COLLECTION = 'entreprises';
 
   // Créer un signalement (document dans collection 'points')
-  async createRoute(input: CreateRouteInput, userId: string): Promise<Route> {
+  async createRoute(input: CreateRouteInput, userId?: string): Promise<Route> {
     try {
+      // Ensure we always have a creator id (string) to avoid Firestore errors
+      let resolvedUserId = userId as any;
+      if (!resolvedUserId) {
+        try {
+          const ud = await authService.getUserData();
+          resolvedUserId = ud?.id ?? ud?.localId ?? 'unknown';
+          console.log('ℹ️ Resolved user id inside createRoute:', resolvedUserId);
+        } catch (err) {
+          console.warn('⚠️ Could not resolve user id from authService:', err);
+          resolvedUserId = 'unknown';
+        }
+      }
+      const creatorIdStr = String(resolvedUserId);
+
       const pointRef = doc(collection(db, this.POINTS_COLLECTION));
 
       const pointDoc: any = {
@@ -34,15 +51,42 @@ class RouteService {
         date_detection: new Date(),
         date_debut: input.date_debut || null,
         date_fin: input.date_fin || null,
-        avancement_pourcentage: input.avancement_pourcentage || 0,
+        avancement_pourcentage: (function(){
+          const map:Record<string,number> = { 'A_FAIRE':0, 'EN_COURS':50, 'TERMINE':100, 'NOUVEAU':0 };
+          return input.point_statut ? (map[input.point_statut] ?? 0) : (input.avancement_pourcentage || 0);
+        })(),
         latitude: input.latitude,
         longitude: input.longitude,
         point_statut: input.point_statut || 'A_FAIRE',
-        created_by: userId,
+        created_by: creatorIdStr,
         created_at: new Date()
       };
 
       await setDoc(pointRef, pointDoc);
+
+      // Upload images si présentes
+      if (input.images && input.images.length > 0) {
+        const imageUrls = await imageService.uploadImages(pointRef.id, input.images as Blob[]);
+        console.log(`📸 URLs reçues de imageService (${imageUrls.length}):`, imageUrls);
+        
+        // Créer les documents dans la sous-collection images
+        const imagesCollection = collection(db, this.POINTS_COLLECTION, pointRef.id, 'images');
+        for (const imageUrl of imageUrls) {
+          console.log(`💾 Stockage dans Firestore: image_url = ${imageUrl}`);
+          await addDoc(imagesCollection, {
+            image_url: imageUrl,
+            firebase_url: imageUrl,
+            created_at: new Date()
+          });
+        }
+      }
+
+      // Créer l'entrée initiale dans l'historique
+      await this.createHistoEntry(pointRef.id, {
+        point_statut_id: null, // On pourrait mapper A_FAIRE -> 1, etc.
+        avancement_pourcentage: pointDoc.avancement_pourcentage,
+        date: new Date()
+      });
 
       const point: Point = {
         id: pointRef.id,
@@ -60,7 +104,7 @@ class RouteService {
         date_debut: pointDoc.date_debut,
         date_fin: pointDoc.date_fin,
         avancement_pourcentage: pointDoc.avancement_pourcentage,
-        created_by: userId,
+        created_by: String(pointDoc.created_by || creatorIdStr),
         created_at: pointDoc.created_at
       };
 
@@ -68,6 +112,47 @@ class RouteService {
     } catch (error) {
       console.error('Erreur lors de la création du signalement:', error);
       throw new Error('Impossible de créer le signalement');
+    }
+  }
+
+  // Créer une entrée dans l'historique
+  private async createHistoEntry(pointId: string, data: { point_statut_id: number | null, avancement_pourcentage: number, date: Date }): Promise<void> {
+    try {
+      const histoCollection = collection(db, this.POINTS_COLLECTION, pointId, 'historique');
+      await addDoc(histoCollection, data);
+      console.log(`✅ Historique créé pour point ${pointId}`);
+    } catch (error) {
+      console.error('❌ Erreur création historique:', error);
+    }
+  }
+
+  // Récupérer toutes les images d'un point
+  async getPointImages(pointId: string): Promise<PointImage[]> {
+    try {
+      const imagesSnapshot = await getDocs(collection(db, this.POINTS_COLLECTION, pointId, 'images'));
+      
+      const images = imagesSnapshot.docs.map(doc => {
+        const data = doc.data();
+        console.log(`📷 Image lue depuis Firestore:`, {
+          id: doc.id,
+          image_url: data.image_url,
+          firebase_url: data.firebase_url,
+          image_url_type: typeof data.image_url
+        });
+        
+        return {
+          id: doc.id,
+          point_id: pointId,
+          ...data,
+          created_at: data.created_at?.toDate?.() || new Date()
+        } as PointImage;
+      });
+      
+      console.log(`✅ ${images.length} images récupérées pour le point ${pointId}`);
+      return images;
+    } catch (error) {
+      console.error('❌ Erreur récupération images:', error);
+      return [];
     }
   }
 
@@ -97,6 +182,9 @@ class RouteService {
           } catch (err) { }
         }
 
+        // Récupérer les images
+        const images = await this.getPointImages(docSnap.id);
+
         points.push({
           id: docSnap.id,
           nom: data.nom || 'Signalement',
@@ -113,7 +201,8 @@ class RouteService {
           date_debut: data.date_debut?.toDate?.() || null,
           date_fin: data.date_fin?.toDate?.() || null,
           avancement_pourcentage: data.avancement_pourcentage || 0,
-          created_by: data.created_by || 'unknown',
+          images: images,
+          created_by: String(data.created_by || 'unknown'),
           created_at: data.created_at?.toDate?.() || new Date()
         });
       }
@@ -202,7 +291,7 @@ class RouteService {
   }
 
   // Mettre à jour un point
-  async updateRoute(routeId: string, updates: Partial<Omit<Point, 'id' | 'created_at' | 'created_by' | 'latitude' | 'longitude'>>): Promise<void> {
+  async updateRoute(routeId: string, updates: Partial<Omit<Point, 'id' | 'created_at' | 'created_by'>>, newImages?: Blob[]): Promise<void> {
     try {
       const pointRef = doc(db, this.POINTS_COLLECTION, routeId);
       const updateData: any = {
@@ -210,6 +299,19 @@ class RouteService {
         updated_at: new Date(),
       };
       
+      // Si le statut change, calculer l'avancement côté client pour l'affichage immédiat
+      const statutToAvancement: Record<string, number> = {
+        'A_FAIRE': 0,
+        'EN_COURS': 50,
+        'TERMINE': 100,
+        'NOUVEAU': 0
+      };
+
+      if (updates.point_statut !== undefined) {
+        const computed = statutToAvancement[updates.point_statut as string] ?? 0;
+        updateData.avancement_pourcentage = computed;
+      }
+
       // Nettoyer les valeurs undefined
       Object.keys(updateData).forEach(key => {
         if (updateData[key] === undefined) {
@@ -217,7 +319,52 @@ class RouteService {
         }
       });
       
+      // Mettre à jour Firestore pour une UI réactive
       await updateDoc(pointRef, updateData);
+
+      // Appeler l'API backend pour que le serveur effectue le calcul définitif et garde la source de vérité
+      try {
+        const headers = await authService.getAuthHeader();
+        if (updates.point_statut !== undefined) {
+          const apiUrl = `${import.meta.env.VITE_API_BASE_URL}/points/${routeId}`;
+          await fetch(apiUrl, {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify({
+              point_statut_code: updates.point_statut,
+              date_debut: updates.date_debut,
+              date_fin: updates.date_fin,
+              latitude: updates.latitude,
+              longitude: updates.longitude
+            })
+          });
+        }
+      } catch (err) {
+        console.warn('⚠️ Echec appel API mise à jour point (non bloquant):', err);
+      }
+
+      // Upload nouvelles images si présentes
+      if (newImages && newImages.length > 0) {
+        const imageUrls = await imageService.uploadImages(routeId, newImages);
+        
+        const imagesCollection = collection(db, this.POINTS_COLLECTION, routeId, 'images');
+        for (const imageUrl of imageUrls) {
+          await addDoc(imagesCollection, {
+            image_url: imageUrl,
+            firebase_url: imageUrl,
+            created_at: new Date()
+          });
+        }
+      }
+
+      // Créer entrée historique si statut ou avancement changé
+      if (updates.point_statut !== undefined || updates.avancement_pourcentage !== undefined) {
+        await this.createHistoEntry(routeId, {
+          point_statut_id: null, // Mapper si nécessaire
+          avancement_pourcentage: updateData.avancement_pourcentage || 0,
+          date: new Date()
+        });
+      }
     } catch (error) {
       console.error('Erreur lors de la mise à jour de la route:', error);
       throw new Error('Impossible de mettre à jour le signalement');

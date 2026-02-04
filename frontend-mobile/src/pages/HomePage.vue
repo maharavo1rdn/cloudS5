@@ -258,6 +258,12 @@
       :routes="routes"
       @close="showStatsModal = false"
     />
+
+    <PhotoGalleryModal
+      :is-open="showPhotoGallery"
+      :images="selectedRouteImages"
+      @close="showPhotoGallery = false"
+    />
   </ion-page>
 </template>
 
@@ -280,7 +286,7 @@ import {
 import { logOut, add, personAdd, locate, warning, alertCircle, construct, checkmarkCircle, map as mapIcon, list, person, documentOutline, pencil, refreshCircle, statsChart } from 'ionicons/icons';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import authService from '../services/authService';
+import { Preferences } from '@capacitor/preferences';
 import routeService from '../services/routeService';
 import RegisterUserModal from '../components/modals/RegisterUserModal.vue';
 import ReportIssueModal from '../components/modals/ReportIssueModal.vue';
@@ -288,8 +294,9 @@ import EditRouteModal from '../components/modals/EditRouteModal.vue';
 import ResetAttemptsModal from '../components/modals/ResetAttemptsModal.vue';
 import BlockedUsersModal from '../components/modals/BlockedUsersModal.vue';
 import StatisticsModal from '../components/modals/StatisticsModal.vue';
+import PhotoGalleryModal from '../components/modals/PhotoGalleryModal.vue';
 import ConnectivityBanner from '../components/ConnectivityBanner.vue';
-import { Route } from '../types/route.types';
+import { Route, PointImage } from '../types/route.types';
 
 const router = useRouter();
 const mapContainer = ref<HTMLElement | null>(null);
@@ -300,7 +307,9 @@ const showEditModal = ref(false);
 const showResetModal = ref(false);
 const showBlockedModal = ref(false);
 const showStatsModal = ref(false);
+const showPhotoGallery = ref(false);
 const selectedRoute = ref<Route | null>(null);
+const selectedRouteImages = ref<PointImage[]>([]);
 const currentLocation = ref<{ lat: number; lng: number } | null>(null);
 const clickedLocation = ref<{ lat: number; lng: number } | null>(null);
 const routes = ref<Route[]>([]);
@@ -330,16 +339,22 @@ const routesByStatus = computed(() => {
 });
 
 onMounted(async () => {
-  const isAuth = await authService.isAuthenticated();
-  if (!isAuth) {
+  // Vérifier authentification
+  const { value: token } = await Preferences.get({ key: 'auth_token' });
+  if (!token) {
     router.replace('/');
     return;
   }
 
-  isManager.value = await authService.isManager();
-  const userData = await authService.getUserData();
-  if (userData && userData.localId) {
-    currentUserId.value = userData.localId;
+  // Vérifier le rôle
+  const { value: role } = await Preferences.get({ key: 'user_role' });
+  isManager.value = role === 'manager';
+  
+  // Récupérer les données utilisateur
+  const { value: userDataStr } = await Preferences.get({ key: 'user_data' });
+  if (userDataStr) {
+    const userData = JSON.parse(userDataStr);
+    currentUserId.value = userData.id?.toString() || '';
   }
   initMap();
   await loadRoutes();
@@ -609,6 +624,18 @@ const displayRouteMarkers = () => {
             </div>
           ` : ''}
         </div>
+        ${route.images && route.images.length > 0 ? `
+          <div class="popup-footer">
+            <button class="popup-photos-btn" data-route-id="${route.id}">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+              Voir photos (${route.images.length})
+            </button>
+          </div>
+        ` : ''}
         ${isManager.value ? `
           <div class="popup-footer">
             <button class="popup-edit-btn" data-route-id="${route.id}">
@@ -628,12 +655,19 @@ const displayRouteMarkers = () => {
       className: 'custom-popup'
     });
     
-    // Ajouter un event listener pour le bouton d'édition
+    // Ajouter un event listener pour les boutons
     marker.on('popupopen', () => {
-      const editBtn = document.querySelector(`[data-route-id="${route.id}"]`);
+      const editBtn = document.querySelector(`[data-route-id="${route.id}"].popup-edit-btn`);
       if (editBtn) {
         editBtn.addEventListener('click', () => {
           openEditModal(route);
+        });
+      }
+
+      const photosBtn = document.querySelector(`[data-route-id="${route.id}"].popup-photos-btn`);
+      if (photosBtn) {
+        photosBtn.addEventListener('click', () => {
+          openPhotoGallery(route);
         });
       }
     });
@@ -690,6 +724,11 @@ const openEditModal = (route: Route) => {
   showEditModal.value = true;
 };
 
+const openPhotoGallery = (route: Route) => {
+  selectedRouteImages.value = route.images || [];
+  showPhotoGallery.value = true;
+};
+
 const closeEditModal = () => {
   showEditModal.value = false;
   selectedRoute.value = null;
@@ -743,7 +782,9 @@ const getIconPathForStatus = (statut: string): string => {
 };
 
 const handleLogout = async () => {
-  await authService.logout();
+  await Preferences.remove({ key: 'auth_token' });
+  await Preferences.remove({ key: 'user_data' });
+  await Preferences.remove({ key: 'user_role' });
   router.replace('/');
 };
 </script>
@@ -1463,10 +1504,12 @@ ion-fab-button:hover {
   padding: 12px 16px;
   border-top: 1px solid #e2e8f0;
   display: flex;
+  gap: 8px;
   justify-content: flex-end;
 }
 
-:deep(.popup-edit-btn) {
+:deep(.popup-edit-btn),
+:deep(.popup-photos-btn) {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1481,12 +1524,23 @@ ion-fab-button:hover {
   transition: all 0.2s;
 }
 
+:deep(.popup-photos-btn) {
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
 :deep(.popup-edit-btn:hover) {
   background: #0f172a;
   color: white;
 }
 
-:deep(.popup-edit-btn svg) {
+:deep(.popup-photos-btn:hover) {
+  background: #3b82f6;
+  color: white;
+}
+
+:deep(.popup-edit-btn svg),
+:deep(.popup-photos-btn svg) {
   width: 16px;
   height: 16px;
 }

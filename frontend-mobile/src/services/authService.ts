@@ -1,77 +1,61 @@
 import { Preferences } from '@capacitor/preferences';
-import userService, { UserProfile } from './userService';
-import loginAttemptService from './loginAttemptService';
 
 const TOKEN_KEY = 'auth_token';
 const USER_KEY = 'user_data';
 const ROLE_KEY = 'user_role';
 
-interface FirebaseAuthResponse {
-  idToken: string;
-  email: string;
-  refreshToken: string;
-  expiresIn: string;
-  localId: string;
-}
-
-interface FirebaseError {
-  error: {
-    message: string;
+interface BackendAuthResponse {
+  message: string;
+  token: string;
+  user: {
+    id: number;
+    username: string;
+    email: string;
+    role?: {
+      name: string;
+      level: number;
+    };
   };
 }
 
+interface BackendError {
+  message: string;
+}
+
 class AuthService {
-  private signInUrl = import.meta.env.SIGN_IN_FIREBASE_URL || 'https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=AIzaSyBLueXEEBaC4KRaPYBQ5RmcGCL5sxzwa6E';
-  private signUpUrl = import.meta.env.SIGN_UP_FIREBASE_URL || 'https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=AIzaSyBLueXEEBaC4KRaPYBQ5RmcGCL5sxzwa6E';
+  private baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+  private signInUrl = `${this.baseUrl}/auth/login`;
+  private signUpUrl = `${this.baseUrl}/auth/register`;
+  private meUrl = `${this.baseUrl}/auth/me`;
 
-  async login(email: string, password: string): Promise<FirebaseAuthResponse> {
+  async login(email: string, password: string): Promise<BackendAuthResponse> {
     try {
-      const attempt = await loginAttemptService.getAttempt(email);
-      if (attempt && attempt.blocked_until) {
-        const blockedUntil = attempt.blocked_until?.toDate ? attempt.blocked_until.toDate() : new Date(attempt.blocked_until);
-        if (new Date() < blockedUntil) {
-          const remaining = Math.ceil((blockedUntil.getTime() - Date.now()) / 60000);
-          throw new Error(`Compte temporairement bloqué. Réessayez dans ${remaining} minute(s).`);
-        }
-      }
-
       const response = await fetch(this.signInUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          email,
-          password,
-          returnSecureToken: true,
-        }),
+        body: JSON.stringify({ email, password }),
       });
-      console.log(this.signInUrl);
+
       const data = await response.json();
 
       if (!response.ok) {
-        // Login failed: increment attempts
-        await loginAttemptService.incrementAttempt(email);
-        const error = data as FirebaseError;
-        throw new Error(this.getErrorMessage(error.error.message));
+        const error = data as BackendError;
+        throw new Error(error.message || 'Erreur de connexion');
       }
 
-      // Successful login: reset attempts
-      await loginAttemptService.resetAttempt(email);
-
-      // Récupérer ou créer le profil utilisateur dans Firestore
-      const userProfile = await userService.getOrCreateUserProfile(data.localId, data.email);
-
-      // Déterminer le rôle basé sur l'email (admin@gmail.com = manager)
-      const userRole = data.email === 'admin@gmail.com' ? 'manager' : 'user';
-
-      // Stocker le token et les données utilisateur avec le rôle
-      await this.setToken(data.idToken);
+      // Stocker le token et les données utilisateur
+      await this.setToken(data.token);
       await this.setUserData({
-        email: data.email,
-        localId: data.localId,
+        id: data.user.id,
+        username: data.user.username,
+        email: data.user.email,
       });
-      await this.setUserRole(userRole);
+      
+      // Stocker le rôle
+      const roleName = data.user.role?.name || 'utilisateur';
+      await this.setUserRole(roleName === 'manager' || roleName === 'administrateur' ? 'manager' : 'user');
 
       // Start session expiration timer
       this.startSessionTimer();
@@ -83,7 +67,7 @@ class AuthService {
     }
   }
 
-  async register(email: string, password: string): Promise<FirebaseAuthResponse> {
+  async register(email: string, password: string, username?: string): Promise<BackendAuthResponse> {
     try {
       const response = await fetch(this.signUpUrl, {
         method: 'POST',
@@ -93,28 +77,28 @@ class AuthService {
         body: JSON.stringify({
           email,
           password,
-          returnSecureToken: true,
+          username: username || email.split('@')[0], // Utiliser l'email comme username si non fourni
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        const error = data as FirebaseError;
-        throw new Error(this.getErrorMessage(error.error.message));
+        const error = data as BackendError;
+        throw new Error(error.message || 'Erreur lors de l\'inscription');
       }
 
-      // Créer le profil utilisateur dans Firestore avec rôle basé sur l'email
-      const userRole = data.email === 'admin@gmail.com' ? 'manager' : 'user';
-      const userProfile = await userService.createUserProfile(data.localId, data.email, userRole);
-
       // Stocker le token et les données utilisateur
-      await this.setToken(data.idToken);
+      await this.setToken(data.token);
       await this.setUserData({
-        email: data.email,
-        localId: data.localId,
+        id: data.user.id,
+        username: data.user.username,
+        email: data.user.email,
       });
-      await this.setUserRole(userProfile.role);
+
+      // Stocker le rôle
+      const roleName = data.user.role?.name || 'utilisateur';
+      await this.setUserRole(roleName === 'manager' || roleName === 'administrateur' ? 'manager' : 'user');
 
       return data;
     } catch (error) {
@@ -166,14 +150,48 @@ class AuthService {
   }
 
   async isManager(): Promise<boolean> {
-    const userData = await this.getUserData();
-    return userData?.email === 'admin@gmail.com' || userData?.role === 'manager';
+    const role = await this.getUserRole();
+    return role === 'manager';
   }
 
-  // Vérifier la connectivité Firestore
-  async checkFirestoreConnectivity(): Promise<boolean> {
+  // Récupérer l'en-tête Authorization pour les appels backend
+  async getAuthHeader(): Promise<HeadersInit> {
+    const token = await this.getToken();
+    if (!token) throw new Error('Non authentifié');
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    };
+  }
+
+  // Récupérer les informations de l'utilisateur depuis le backend
+  async getCurrentUser(): Promise<any> {
     try {
-      return await userService.checkConnectivity();
+      const headers = await this.getAuthHeader();
+
+      const response = await fetch(this.meUrl, {
+        headers,
+      });
+
+      if (!response.ok) {
+        // Token invalide, déconnexion
+        await this.logout();
+        return null;
+      }
+
+      const data = await response.json();
+      return data.user;
+    } catch (error) {
+      console.error('Error fetching current user:', error);
+      return null;
+    }
+  }
+
+  // Vérifier la connectivité au backend
+  async checkConnectivity(): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.baseUrl}/health`, { method: 'GET' });
+      return response.ok;
     } catch (error) {
       return false;
     }
@@ -225,24 +243,6 @@ class AuthService {
 
   private async setUserRole(role: 'user' | 'manager'): Promise<void> {
     await Preferences.set({ key: ROLE_KEY, value: role });
-  }
-
-  private getErrorMessage(firebaseError: string): string {
-    const errorMessages: Record<string, string> = {
-      'EMAIL_NOT_FOUND': 'Email ou mot de passe incorrect',
-      'INVALID_PASSWORD': 'Email ou mot de passe incorrect',
-      'INVALID_EMAIL': 'Adresse email invalide',
-      'MISSING_EMAIL': 'Adresse email requise',
-      'MISSING_PASSWORD': 'Mot de passe requis',
-      'USER_DISABLED': 'Ce compte a été désactivé',
-      'EMAIL_EXISTS': 'Cet email est déjà utilisé',
-      'WEAK_PASSWORD': 'Mot de passe trop faible (minimum 6 caractères)',
-      'TOO_MANY_ATTEMPTS_TRY_LATER': 'Trop de tentatives. Réessayez plus tard',
-      'OPERATION_NOT_ALLOWED': 'Connexion temporairement indisponible',
-      'INVALID_LOGIN_CREDENTIALS': 'Email ou mot de passe incorrect',
-    };
-
-    return errorMessages[firebaseError] || 'Une erreur inattendue est survenue. Vérifiez votre connexion internet.';
   }
 }
 

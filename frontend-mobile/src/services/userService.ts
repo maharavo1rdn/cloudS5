@@ -1,116 +1,154 @@
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import authService from './authService';
 
 export interface UserProfile {
+  id: number;
+  username: string;
   email: string;
-  uid: string;
-  role: 'user' | 'manager';
-  createdAt: Date;
-  updatedAt: Date;
+  role: {
+    name: string;
+    level: number;
+  };
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 class UserService {
-  private readonly COLLECTION_NAME = 'users';
+  private baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
 
-  // Créer un nouveau profil utilisateur
-  async createUserProfile(uid: string, email: string, role: 'user' | 'manager' = 'user'): Promise<UserProfile> {
+  // Récupérer le profil de l'utilisateur connecté
+  async getCurrentUserProfile(): Promise<UserProfile | null> {
     try {
-      const userProfile: UserProfile = {
-        email,
-        uid,
-        role,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      const headers = await authService.getAuthHeader();
+      const response = await fetch(`${this.baseUrl}/auth/me`, { headers });
 
-      await setDoc(doc(db, this.COLLECTION_NAME, uid), userProfile);
-      return userProfile;
-    } catch (error) {
-      console.error('Erreur lors de la création du profil:', error);
-      throw new Error(this.getErrorMessage(error));
-    }
-  }
-
-  // Récupérer un profil utilisateur
-  async getUserProfile(uid: string): Promise<UserProfile | null> {
-    try {
-      const docRef = doc(db, this.COLLECTION_NAME, uid);
-      const docSnap = await getDoc(docRef);
-
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        return {
-          ...data,
-          createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt),
-          updatedAt: data.updatedAt?.toDate?.() || new Date(data.updatedAt),
-        } as UserProfile;
+      if (!response.ok) {
+        throw new Error('Erreur lors de la récupération du profil');
       }
-      return null;
+
+      const data = await response.json();
+      return data.user;
     } catch (error) {
       console.error('Erreur lors de la récupération du profil:', error);
-      throw new Error(this.getErrorMessage(error));
+      return null;
     }
   }
 
-  // Mettre à jour le rôle d'un utilisateur
-  async updateUserRole(uid: string, role: 'user' | 'manager'): Promise<void> {
+  // Récupérer un utilisateur par ID
+  async getUserById(userId: number): Promise<UserProfile | null> {
     try {
-      const docRef = doc(db, this.COLLECTION_NAME, uid);
-      await updateDoc(docRef, {
-        role,
-        updatedAt: new Date(),
-      });
-    } catch (error) {
-      console.error('Erreur lors de la mise à jour du rôle:', error);
-      throw new Error(this.getErrorMessage(error));
-    }
-  }
+      const headers = await authService.getAuthHeader();
+      const response = await fetch(`${this.baseUrl}/users/${userId}`, { headers });
 
-  // Obtenir ou créer un profil utilisateur
-  async getOrCreateUserProfile(uid: string, email: string): Promise<UserProfile> {
-    try {
-      let profile = await this.getUserProfile(uid);
-
-      if (!profile) {
-        // Créer un nouveau profil avec le rôle 'user' par défaut
-        profile = await this.createUserProfile(uid, email, 'user');
+      if (!response.ok) {
+        return null;
       }
-      return profile;
+
+      const data = await response.json();
+      return data;
     } catch (error) {
-      console.error('Erreur lors de getOrCreateUserProfile:', error);
-      // En cas d'erreur réseau, retourner un profil temporaire
-      return {
-        email,
-        uid,
-        role: 'user',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      console.error('Erreur lors de la récupération de l\'utilisateur:', error);
+      return null;
     }
   }
 
-  // Vérifier la connectivité
+  // Lister tous les utilisateurs (pour les managers)
+  async getAllUsers(): Promise<UserProfile[]> {
+    try {
+      const headers = await authService.getAuthHeader();
+      const response = await fetch(`${this.baseUrl}/users`, { headers });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la récupération des utilisateurs');
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Erreur lors de la récupération des utilisateurs:', error);
+      return [];
+    }
+  }
+
+  // Vérifier la connectivité au backend
   async checkConnectivity(): Promise<boolean> {
     try {
-      // Essayer de récupérer un document pour tester la connexion
-      const testDoc = await getDoc(doc(db, '_test', 'connectivity'));
-      return true;
+      const response = await fetch(`${this.baseUrl}/health`, { method: 'GET' });
+      return response.ok;
     } catch (error) {
       return false;
     }
   }
 
-  private getErrorMessage(error: any): string {
-    if (error?.code === 'unavailable' || error?.message?.includes('offline')) {
-      return 'Connexion réseau indisponible. Vérifiez votre connexion internet.';
+  // Récupérer les utilisateurs bloqués (Manager uniquement)
+  async getBlockedUsers(): Promise<any[]> {
+    try {
+      const headers = await authService.getAuthHeader();
+      const response = await fetch(`${this.baseUrl}/users/blocked`, { headers });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la récupération des utilisateurs bloqués');
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Erreur lors de la récupération des utilisateurs bloqués:', error);
+      return [];
     }
-    if (error?.code === 'permission-denied') {
-      return 'Accès refusé. Vérifiez les permissions Firestore.';
+  }
+
+  // Bloquer un utilisateur (Manager uniquement)
+  async blockUser(userId: number): Promise<void> {
+    try {
+      const headers = await authService.getAuthHeader();
+      const response = await fetch(`${this.baseUrl}/users/${userId}/block`, {
+        method: 'PUT',
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors du blocage de l\'utilisateur');
+      }
+    } catch (error) {
+      console.error('Erreur lors du blocage de l\'utilisateur:', error);
+      throw error;
     }
-    if (error?.code === 'not-found') {
-      return 'Document non trouvé.';
+  }
+
+  // Débloquer un utilisateur (Manager uniquement)
+  async unblockUser(userId: number): Promise<void> {
+    try {
+      const headers = await authService.getAuthHeader();
+      const response = await fetch(`${this.baseUrl}/users/${userId}/unblock`, {
+        method: 'PUT',
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors du déblocage de l\'utilisateur');
+      }
+    } catch (error) {
+      console.error('Erreur lors du déblocage de l\'utilisateur:', error);
+      throw error;
     }
-    return error?.message || 'Une erreur est survenue avec Firestore.';
+  }
+
+  // Réinitialiser les tentatives de connexion d'un utilisateur
+  async resetLoginAttempts(userId: number): Promise<void> {
+    try {
+      const headers = await authService.getAuthHeader();
+      const response = await fetch(`${this.baseUrl}/auth/reset-attempts/${userId}`, {
+        method: 'POST',
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la réinitialisation des tentatives');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la réinitialisation des tentatives:', error);
+      throw error;
+    }
   }
 }
 
