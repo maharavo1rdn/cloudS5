@@ -36,26 +36,26 @@ const SyncModal = ({ isOpen, onClose }) => {
     setSyncResults(null);
 
     try {
-      addLog('Démarrage de la synchronisation bidirectionnelle...', 'info');
+      addLog('Démarrage de la synchronisation...', 'info');
       setSyncProgress(10);
 
-      // Vérifier le statut Firebase
-      addLog('Vérification de la disponibilité Firebase...', 'info');
+      // Étape 1: Vérifier le statut
+      addLog('Vérification du statut Firebase...', 'info');
       const statusResponse = await fetch(`${API_BASE_URL}/sync/status`);
-      if (!statusResponse.ok) throw new Error(`Erreur HTTP ${statusResponse.status} lors de la vérification du statut`);
+      
+      if (!statusResponse.ok) throw new Error('Impossible de contacter le serveur de statut');
+      
       const status = await statusResponse.json();
-
+      
       if (!status.firebase_available) {
         throw new Error('Firebase non disponible');
       }
-
+      
       addLog(`Firebase disponible - ${status.pending_local_changes} modifications en attente`, 'success');
       setSyncProgress(25);
 
-      // Appeler la route de synchronisation complète (points + users + images + historique)
-      addLog('Lancement de la synchronisation complète (points/users/images/historique)...', 'info');
-      setSyncProgress(35);
-
+      // Étape 2: Récupération (pull) depuis Firebase
+      addLog('Récupération des données (Pull)...', 'info');
       const fullResponse = await fetch(`${API_BASE_URL}/sync/full`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -63,23 +63,21 @@ const SyncModal = ({ isOpen, onClose }) => {
       });
 
       if (!fullResponse.ok) {
-        const errText = await fullResponse.text();
-        throw new Error(`Erreur HTTP ${fullResponse.status}: ${errText}`);
+        throw new Error(`Erreur lors de la synchro complète (HTTP ${fullResponse.status})`);
       }
 
       const syncData = await fullResponse.json();
+      setSyncProgress(70);
 
-      // Afficher des logs détaillés (sécurisé avec des ? pour éviter crashs si champs manquants)
-      addLog(`Pull: ${syncData.pull?.received || 0} éléments traités (créés: ${syncData.pull?.created || 0}, mis à jour: ${syncData.pull?.updated || 0})`, 'success');
-      addLog(`Push: ${syncData.push?.created?.length || 0} créés, ${syncData.push?.updated?.length || 0} mis à jour`, 'success');
-      setSyncProgress(65);
-
-      addLog(`Utilisateurs reçus: ${syncData.users_pull?.received || 0} (créés: ${syncData.users_pull?.created || 0}, mis à jour: ${syncData.users_pull?.updated || 0})`, 'success');
-      addLog(`Utilisateurs envoyés: ${syncData.users_push?.total || 0} traités (créés: ${syncData.users_push?.created || 0})`, 'success');
-
-      addLog(`Images: reçues ${syncData.images_histo?.images?.pulled || 0}, envoyées ${syncData.images_histo?.images?.pushed || 0}`, 'success');
-      addLog(`Historique: reçues ${syncData.images_histo?.historique?.pulled || 0}, envoyées ${syncData.images_histo?.historique?.pushed || 0}`, 'success');
-
+      // Logs détaillés
+      if (syncData.pull) {
+         addLog(`Points reçus: ${syncData.pull.received} (Créés: ${syncData.pull.created}, MAJ: ${syncData.pull.updated})`, 'success');
+      }
+      if (syncData.push) {
+         addLog(`Points envoyés: ${syncData.push.total} traités`, 'success');
+      }
+      
+      // Finalisation des résultats
       setSyncResults({
         pull: syncData.pull || { received: 0, created: 0, updated: 0 },
         push: syncData.push || { total: 0, created: [], updated: [] },
@@ -88,18 +86,16 @@ const SyncModal = ({ isOpen, onClose }) => {
         images_histo: syncData.images_histo || { images: { pulled: 0, pushed: 0 }, historique: { pulled: 0, pushed: 0 } },
         timestamp: new Date().toISOString()
       });
-
-      addLog('Synchronisation bidirectionnelle terminée.', 'success');
+      
+      addLog('Synchronisation terminée avec succès.', 'success');
       setSyncState('success');
       setSyncProgress(100);
 
-      // Recharger la page après 2 secondes pour afficher les nouvelles données
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
+      // Optionnel : Recharger la page après succès
+      // setTimeout(() => window.location.reload(), 2000);
 
     } catch (error) {
-      addLog(`Erreur: ${error.message}`, 'error');
+      addLog(`Erreur critique: ${error.message}`, 'error');
       setSyncState('error');
       console.error('Erreur synchronisation:', error);
     }
@@ -121,7 +117,7 @@ const SyncModal = ({ isOpen, onClose }) => {
         {/* Header */}
         <div className="sync-modal-header">
           <div className="header-title">
-            <Cloud className="header-icon" />
+            <Cloud className="header-icon" size={24} />
             <span>Synchronisation Cloud</span>
           </div>
           <button onClick={onClose} className="close-btn" disabled={syncState === 'syncing'}>
@@ -131,7 +127,7 @@ const SyncModal = ({ isOpen, onClose }) => {
 
         <div className="sync-modal-body">
           
-          {/* ÉTAT : IDLE (Accueil) */}
+          {/* VUE 1 : IDLE (Accueil) */}
           {syncState === 'idle' && (
             <div className="state-view idle-view">
               <div className="hero-section">
@@ -139,33 +135,33 @@ const SyncModal = ({ isOpen, onClose }) => {
                   <ArrowRightLeft size={32} />
                 </div>
                 <h2>Prêt à synchroniser ?</h2>
-                <p>Mise à jour des données locales et envoi des modifications vers le serveur.</p>
+                <p>Cette action mettra à jour vos données locales et enverra vos modifications au serveur.</p>
               </div>
 
               <div className="info-grid">
                 <div className="info-card">
-                  <Database className="card-icon blue" />
+                  <Database className="card-icon blue" size={20} />
                   <div>
                     <h4>Données Points</h4>
                     <span>Import/Export signalements</span>
                   </div>
                 </div>
                 <div className="info-card">
-                  <Users className="card-icon green" />
+                  <Users className="card-icon green" size={20} />
                   <div>
                     <h4>Utilisateurs</h4>
                     <span>Sync des profils</span>
                   </div>
                 </div>
                 <div className="info-card">
-                  <ImageIcon className="card-icon purple" />
+                  <ImageIcon className="card-icon purple" size={20} />
                   <div>
                     <h4>Médias</h4>
                     <span>Galerie photos</span>
                   </div>
                 </div>
                 <div className="info-card">
-                  <FileClock className="card-icon orange" />
+                  <FileClock className="card-icon orange" size={20} />
                   <div>
                     <h4>Historique</h4>
                     <span>Logs d'activités</span>
@@ -180,27 +176,33 @@ const SyncModal = ({ isOpen, onClose }) => {
             </div>
           )}
 
-          {/* ÉTAT : SYNCING (En cours) */}
+          {/* VUE 2 : SYNCING (En cours - Amélioré) */}
           {syncState === 'syncing' && (
             <div className="state-view syncing-view">
-              <div className="progress-container">
-                <div className="spinner-wrapper">
-                  <RefreshCw className="spinning-icon" size={48} />
+              <div className="sync-visual">
+                <div className="spinner-ring">
+                  <RefreshCw className="spinning-icon" size={40} />
                 </div>
-                <h3>Synchronisation en cours...</h3>
-                <span className="progress-percent">{syncProgress}%</span>
+                <div className="progress-big-number">{syncProgress}%</div>
+              </div>
+
+              <div className="sync-text-group">
+                <h3>Traitement en cours...</h3>
+                <p>Veuillez ne pas fermer l'application</p>
               </div>
               
-              <div className="progress-track">
+              <div className="progress-track-large">
                 <div 
-                  className="progress-fill" 
+                  className="progress-fill-large" 
                   style={{ width: `${syncProgress}%` }}
-                ></div>
+                >
+                  <div className="progress-glow"></div>
+                </div>
               </div>
             </div>
           )}
 
-          {/* ÉTAT : RÉSULTATS (Succès/Erreur) */}
+          {/* VUE 3 : RÉSULTATS (Succès/Erreur) */}
           {(syncState === 'success' || syncState === 'error') && syncResults && (
             <div className="state-view results-view">
               <div className={`status-banner ${syncState}`}>
@@ -212,7 +214,7 @@ const SyncModal = ({ isOpen, onClose }) => {
                 {/* Points */}
                 <div className="stat-box">
                   <div className="stat-header">
-                    <Database size={16} className="text-blue" /> <span>Points</span>
+                    <Database size={14} className="text-blue" /> <span>Points</span>
                   </div>
                   <div className="stat-row">
                     <Download size={12} /> <span className="val">{syncResults.pull?.received || 0}</span>
@@ -225,7 +227,7 @@ const SyncModal = ({ isOpen, onClose }) => {
                 {/* Utilisateurs */}
                 <div className="stat-box">
                   <div className="stat-header">
-                    <Users size={16} className="text-green" /> <span>Utilisateurs</span>
+                    <Users size={14} className="text-green" /> <span>Utilisateurs</span>
                   </div>
                   <div className="stat-row">
                     <Download size={12} /> <span className="val">{syncResults.users_pull?.received || 0}</span>
@@ -238,7 +240,7 @@ const SyncModal = ({ isOpen, onClose }) => {
                 {/* Images */}
                 <div className="stat-box">
                   <div className="stat-header">
-                    <ImageIcon size={16} className="text-purple" /> <span>Images</span>
+                    <ImageIcon size={14} className="text-purple" /> <span>Images</span>
                   </div>
                   <div className="stat-row">
                     <Download size={12} /> <span className="val">{syncResults.images_histo?.images?.pulled || 0}</span>
@@ -251,7 +253,7 @@ const SyncModal = ({ isOpen, onClose }) => {
                 {/* Historique */}
                 <div className="stat-box">
                   <div className="stat-header">
-                    <FileClock size={16} className="text-orange" /> <span>Historique</span>
+                    <FileClock size={14} className="text-orange" /> <span>Historique</span>
                   </div>
                   <div className="stat-row">
                     <Download size={12} /> <span className="val">{syncResults.images_histo?.historique?.pulled || 0}</span>
@@ -263,6 +265,7 @@ const SyncModal = ({ isOpen, onClose }) => {
               </div>
 
               <button onClick={resetSync} className="action-btn outline">
+                <RefreshCw size={16} />
                 Nouvelle synchronisation
               </button>
             </div>
