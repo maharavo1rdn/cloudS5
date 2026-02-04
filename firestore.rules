@@ -1,0 +1,38 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Collection points (signalements)
+    match /points/{pointId} {
+      // Lecture : tout le monde (public)
+      allow read: if true;
+      
+      // Écriture : utilisateur authentifié uniquement
+      allow create, update: if request.auth != null;
+      
+      // Suppression : uniquement le créateur
+      allow delete: if request.auth != null && 
+                       resource.data.created_by == request.auth.uid;
+    }
+    
+    // Collection notifications
+    match /notifications/{notificationId} {
+      // Lecture : uniquement ses propres notifications
+      allow read: if request.auth != null && 
+                     resource.data.userId == request.auth.uid;
+      
+      // Création : uniquement pour soi-même (système ou self)
+      allow create: if request.auth != null && 
+                       request.resource.data.userId == request.auth.uid;
+      
+      // Mise à jour : uniquement ses propres notifications (pour marquer comme lu)
+      allow update: if request.auth != null && 
+                       resource.data.userId == request.auth.uid;
+      
+      // Suppression : uniquement ses propres notifications
+      allow delete: if request.auth != null && 
+                       resource.data.userId == request.auth.uid;
+    }
+  }
+}
