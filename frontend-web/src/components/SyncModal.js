@@ -39,77 +39,60 @@ const SyncModal = ({ isOpen, onClose }) => {
       addLog('Démarrage de la synchronisation bidirectionnelle...', 'info');
       setSyncProgress(10);
 
-      // Appeler la nouvelle route de synchronisation bidirectionnelle
-      addLog('Synchronisation Firebase ↔ PostgreSQL...', 'info');
-      setSyncProgress(30);
-      
+      // Vérifier le statut Firebase
+      addLog('Vérification de la disponibilité Firebase...', 'info');
+      const statusResponse = await fetch(`${API_BASE_URL}/sync/status`);
+      if (!statusResponse.ok) throw new Error(`Erreur HTTP ${statusResponse.status} lors de la vérification du statut`);
+      const status = await statusResponse.json();
+
       if (!status.firebase_available) {
         throw new Error('Firebase non disponible');
       }
-      
+
       addLog(`Firebase disponible - ${status.pending_local_changes} modifications en attente`, 'success');
       setSyncProgress(25);
 
-      // Étape 2: Récupération (pull) depuis Firebase
-      addLog('Récupération des données depuis Firebase...', 'info');
-      const pullResponse = await fetch(`${API_BASE_URL}/sync/pull`, {
+      // Appeler la route de synchronisation complète (points + users + images + historique)
+      addLog('Lancement de la synchronisation complète (points/users/images/historique)...', 'info');
+      setSyncProgress(35);
+
+      const fullResponse = await fetch(`${API_BASE_URL}/sync/full`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ since: status.last_sync_at })
+        body: JSON.stringify({ force: false })
       });
-      
-      const pullResults = await pullResponse.json();
-      addLog(`Pull terminé : ${pullResults.received} éléments traités`, 'success');
-      setSyncProgress(60);
 
-      // Étape 3: Envoi (push) vers Firebase
-      addLog('Envoi des modifications locales vers Firebase...', 'info');
-      const pushResponse = await fetch(`${API_BASE_URL}/sync/push`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      
-      if (!syncResponse.ok) {
-        throw new Error(`Erreur HTTP ${syncResponse.status}`);
-      }
-      
-      const syncData = await syncResponse.json();
-      
-      if (!syncData.success) {
-        addLog('Synchronisation terminée avec des erreurs', 'warning');
-      }
-      
-      // Logs détaillés
-      addLog(`Firebase → PostgreSQL : ${syncData.firebase_to_postgres.created_signalements} signalements créés`, 'success');
-      addLog(`Firebase → PostgreSQL : ${syncData.firebase_to_postgres.created_points} points créés`, 'success');
-      setSyncProgress(70);
-      
-      addLog(`PostgreSQL → Firebase : ${syncData.postgres_to_firebase.created_firebase} signalements créés`, 'success');
-      setSyncProgress(90);
-      
-      // Afficher les erreurs s'il y en a
-      if (syncData.firebase_to_postgres.errors.length > 0) {
-        addLog(`${syncData.firebase_to_postgres.errors.length} erreurs lors de Firebase → PostgreSQL`, 'warning');
-      }
-      if (syncData.postgres_to_firebase.errors.length > 0) {
-        addLog(`${syncData.postgres_to_firebase.errors.length} erreurs lors de PostgreSQL → Firebase`, 'warning');
+      if (!fullResponse.ok) {
+        const errText = await fullResponse.text();
+        throw new Error(`Erreur HTTP ${fullResponse.status}: ${errText}`);
       }
 
-      // Finalisation
+      const syncData = await fullResponse.json();
+
+      // Afficher des logs détaillés (sécurisé avec des ? pour éviter crashs si champs manquants)
+      addLog(`Pull: ${syncData.pull?.received || 0} éléments traités (créés: ${syncData.pull?.created || 0}, mis à jour: ${syncData.pull?.updated || 0})`, 'success');
+      addLog(`Push: ${syncData.push?.created?.length || 0} créés, ${syncData.push?.updated?.length || 0} mis à jour`, 'success');
+      setSyncProgress(65);
+
+      addLog(`Utilisateurs reçus: ${syncData.users_pull?.received || 0} (créés: ${syncData.users_pull?.created || 0}, mis à jour: ${syncData.users_pull?.updated || 0})`, 'success');
+      addLog(`Utilisateurs envoyés: ${syncData.users_push?.total || 0} traités (créés: ${syncData.users_push?.created || 0})`, 'success');
+
+      addLog(`Images: reçues ${syncData.images_histo?.images?.pulled || 0}, envoyées ${syncData.images_histo?.images?.pushed || 0}`, 'success');
+      addLog(`Historique: reçues ${syncData.images_histo?.historique?.pulled || 0}, envoyées ${syncData.images_histo?.historique?.pushed || 0}`, 'success');
+
       setSyncResults({
-        pull: pullResults,
-        push: pushResults,
-        // Mock des objets manquants dans la logique originale pour éviter les crashs UI si l'API ne les renvoie pas
-        users_pull: pullResults.users_pull || { received: 0, created: 0, updated: 0 },
-        users_push: pushResults.users_push || { total: 0, created: 0, updated: 0 },
-        images_histo: pushResults.images_histo || { images: { pulled: 0, pushed: 0 }, historique: { pulled: 0, pushed: 0 } },
+        pull: syncData.pull || { received: 0, created: 0, updated: 0 },
+        push: syncData.push || { total: 0, created: [], updated: [] },
+        users_pull: syncData.users_pull || { received: 0, created: 0, updated: 0 },
+        users_push: syncData.users_push || { total: 0, created: 0, updated: 0 },
+        images_histo: syncData.images_histo || { images: { pulled: 0, pushed: 0 }, historique: { pulled: 0, pushed: 0 } },
         timestamp: new Date().toISOString()
       });
-      
+
       addLog('Synchronisation bidirectionnelle terminée.', 'success');
       setSyncState('success');
       setSyncProgress(100);
-      
+
       // Recharger la page après 2 secondes pour afficher les nouvelles données
       setTimeout(() => {
         window.location.reload();
