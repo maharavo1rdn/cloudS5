@@ -1,8 +1,9 @@
 const admin = require('firebase-admin');
+const path = require('path');
 
-// ⚠️ IMPORTANT: Remplacez par votre propre clé de service Firebase
-// Téléchargez-la depuis Firebase Console > Paramètres du projet > Comptes de service > Générer une nouvelle clé privée
-const serviceAccount = require('./clouds5-49c07-firebase-adminsdk-fbsvc-b55316280a.json');
+// ⚠️ IMPORTANT: Chemin vers la clé de service Firebase
+const serviceAccountPath = path.join(__dirname, '..', 'backend', 'config', 'serviceAccountKey.json');
+const serviceAccount = require(serviceAccountPath);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -187,12 +188,63 @@ async function seedDatabase() {
       console.log(`✅ Problème ${probleme.id} importé`);
     }
 
-    // 2. Importer les utilisateurs
+    // 2. Importer les utilisateurs (avec tous les firebase_uid de PostgreSQL)
     console.log('👥 Importation des utilisateurs...');
     await db.collection('users').doc('user123').set(users[0]);
     await db.collection('users').doc('manager123').set(users[1]);
     await db.collection('users').doc('otherUser').set(users[2]);
-    console.log('✅ Utilisateurs importés');
+    
+    // Ajouter les users PostgreSQL manquants
+    await db.collection('users').doc('CGH1xWXPhjmIh0yYjHgo').set({
+      email: 'user@gmail.com',
+      nom: 'Dupont',
+      prenom: 'Jean',
+      role: 'user',
+      createdAt: admin.firestore.Timestamp.now(),
+      updatedAt: admin.firestore.Timestamp.now()
+    });
+    await db.collection('users').doc('BmOY9DZO0taGuAAIp4H6').set({
+      email: 'manager@gmail.com',
+      nom: 'Rakoto',
+      prenom: 'Marie',
+      role: 'manager',
+      createdAt: admin.firestore.Timestamp.now(),
+      updatedAt: admin.firestore.Timestamp.now()
+    });
+    await db.collection('users').doc('TjFPMyW0GnYykDSTzLUenJnlnT42').set({
+      email: 'test@gmail.com',
+      nom: 'Test',
+      prenom: 'User',
+      role: 'user',
+      createdAt: admin.firestore.Timestamp.now(),
+      updatedAt: admin.firestore.Timestamp.now()
+    });
+    await db.collection('users').doc('gCjn0woNZPYWaYq2b7ozg2w5Kq83').set({
+      email: 'admin@gmail.com',
+      nom: 'Admin',
+      prenom: 'System',
+      role: 'manager',
+      createdAt: admin.firestore.Timestamp.now(),
+      updatedAt: admin.firestore.Timestamp.now()
+    });
+    await db.collection('users').doc('m6Ahdvk2NtpzpJU9yzKj').set({
+      email: 'admin@example.com',
+      nom: 'Admin',
+      prenom: 'Example',
+      role: 'manager',
+      createdAt: admin.firestore.Timestamp.now(),
+      updatedAt: admin.firestore.Timestamp.now()
+    });
+    await db.collection('users').doc('vhCG5s70O3Ohx2DbkYCErge6RGq2').set({
+      email: 'bel@gmail.com',
+      nom: 'Bel',
+      prenom: 'User',
+      role: 'user',
+      createdAt: admin.firestore.Timestamp.now(),
+      updatedAt: admin.firestore.Timestamp.now()
+    });
+    
+    console.log('✅ Utilisateurs importés (9 au total)');
 
     // 3. Importer les entreprises
     console.log('🏢 Importation des entreprises...');
@@ -261,15 +313,19 @@ async function seedDatabase() {
 
         // Historique : entrée initiale 'A_FAIRE' et entrée correspondant au statut actuel
         const statutMap = { 'A_FAIRE': 0, 'EN_COURS': 50, 'TERMINE': 100 };
+        const validStatuts = ['A_FAIRE', 'EN_COURS', 'TERMINE'];
+        
+        // TOUJOURS ajouter l'entrée initiale A_FAIRE avec point_statut valide
         await db.collection('points').doc(route.id).collection('historique').add({
-          point_statut: 'A_FAIRE',
+          point_statut: 'A_FAIRE', // TOUJOURS inclure point_statut (requis pour sync)
           avancement_pourcentage: 0,
           date: route.date_creation || admin.firestore.Timestamp.now()
         });
 
-        if (route.statut && route.statut !== 'A_FAIRE') {
+        // Si le statut actuel est différent de A_FAIRE, ajouter une 2e entrée
+        if (route.statut && route.statut !== 'A_FAIRE' && validStatuts.includes(route.statut)) {
           await db.collection('points').doc(route.id).collection('historique').add({
-            point_statut: route.statut,
+            point_statut: route.statut, // TOUJOURS inclure point_statut (requis pour sync)
             avancement_pourcentage: statutMap[route.statut] || 0,
             date: route.date_creation || admin.firestore.Timestamp.now()
           });

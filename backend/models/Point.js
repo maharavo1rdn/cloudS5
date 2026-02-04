@@ -7,6 +7,16 @@ const Point = sequelize.define('Point', {
     primaryKey: true,
     autoIncrement: true,
   },
+  nom: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'Nom/titre du point de signalement'
+  },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'Description détaillée du problème'
+  },
   probleme_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
@@ -55,6 +65,16 @@ const Point = sequelize.define('Point', {
       model: 'point_statut',
       key: 'id'
     }
+  },
+  firebase_id: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'ID du document Firestore correspondant'
+  },
+  last_synced_at: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    comment: 'Timestamp de la dernière synchronisation avec Firebase'
   }
 }, {
   tableName: 'points',

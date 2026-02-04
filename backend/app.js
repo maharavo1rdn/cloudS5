@@ -7,7 +7,7 @@ import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import settingsRoutes from './routes/settings.js';
 import routeRoutes from './routes/routes.js';
-// import syncRoutes from './routes/sync.js'; // Temporairement désactivé
+import syncRoutes from './routes/sync.js'; // Activation du routeur de synchronisation
 import { setupAssociations } from './models/associations.js';
 import routesAPIRoutes from './routes/routesAPI.js';
 import statsRoutes from './routes/stats.js';
@@ -126,8 +126,8 @@ app.use('/api/users', userRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/routes', routeRoutes);
 app.use('/api/stats', statsRoutes);
-// app.use('/api/sync', syncRoutes); // Temporairement désactivé - firebase-admin requis
-app.use('/api/sync-bidirectional', syncBidirectionalRoutes); // Nouvelle route de sync bidirectionnelle
+app.use('/api/sync', syncRoutes); // Activer routes /api/sync
+app.use('/api/sync-bidirectional', syncBidirectionalRoutes); // Garder /api/sync-bidirectional pour compatibilité
 app.use('/api/entreprises', entreprisesRoutes);
 app.use('/api/problemes', problemesRoutes);
 app.use('/api/points', pointsRoutes);
