@@ -50,15 +50,28 @@ class AuthService {
       throw new Error('Email ou mot de passe incorrect');
     }
 
-    // Vérifier si l'utilisateur est bloqué
-    if (user.isBlocked) {
-      throw new Error('Compte bloqué. Contactez un administrateur.');
-    }
-
     // Récupérer ou créer les tentatives de connexion
     let loginAttempt = await LoginAttempt.findOne({ where: { user_id: user.id } });
     if (!loginAttempt) {
       loginAttempt = await LoginAttempt.create({ user_id: user.id });
+    }
+
+    // Si le compte est marqué bloqué mais la période de blocage est passée, débloquer automatiquement
+    if (user.isBlocked && loginAttempt.blocked_until) {
+      const blockedDate = new Date(loginAttempt.blocked_until);
+      if (new Date() >= blockedDate) {
+        console.log(`🔓 Auto-unblock: user ${user.id} - blocage expiré (${blockedDate.toISOString()})`);
+        user.isBlocked = false;
+        await user.save();
+        loginAttempt.attempts = 0;
+        loginAttempt.blocked_until = null;
+        await loginAttempt.save();
+      }
+    }
+
+    // Vérifier si l'utilisateur est bloqué (après tentative d'auto-unblock)
+    if (user.isBlocked) {
+      throw new Error('Compte bloqué. Contactez un administrateur.');
     }
 
     // Vérifier si l'utilisateur est temporairement bloqué
@@ -79,6 +92,7 @@ class AuthService {
         // Bloquer temporairement (15 minutes)
         loginAttempt.blocked_until = new Date(Date.now() + 15 * 60 * 1000);
         await loginAttempt.save();
+        await user.update({ isBlocked: true });
         throw new Error(`Nombre de tentatives dépassé. Compte bloqué pour 15 minutes.`);
       }
 

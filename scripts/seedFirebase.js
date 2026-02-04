@@ -243,6 +243,40 @@ async function seedDatabase() {
       // Use route.id as doc id to keep references stable
       await db.collection('points').doc(route.id).set(pointData);
       console.log(`✅ Point (signalement) ${route.id} importé`);
+
+      // --- Ajout d'exemples : images et historique pour ce point ---
+      try {
+        // Ajout de 1 à 3 images de démonstration stables (picsum) pour éviter les URLs cassées
+        const imagesCount = Math.floor(Math.random() * 3) + 1; // 1..3 images
+        for (let i = 0; i < imagesCount; i++) {
+          const imgUrl = `https://picsum.photos/seed/${route.id}-${i}/800/600`;
+          await db.collection('points').doc(route.id).collection('images').add({
+            image_url: imgUrl,
+            firebase_url: imgUrl,
+            created_at: admin.firestore.Timestamp.now()
+          });
+        }
+
+        console.log(`📸 ${imagesCount} images ajoutées pour ${route.id}`);
+
+        // Historique : entrée initiale 'A_FAIRE' et entrée correspondant au statut actuel
+        const statutMap = { 'A_FAIRE': 0, 'EN_COURS': 50, 'TERMINE': 100 };
+        await db.collection('points').doc(route.id).collection('historique').add({
+          point_statut: 'A_FAIRE',
+          avancement_pourcentage: 0,
+          date: route.date_creation || admin.firestore.Timestamp.now()
+        });
+
+        if (route.statut && route.statut !== 'A_FAIRE') {
+          await db.collection('points').doc(route.id).collection('historique').add({
+            point_statut: route.statut,
+            avancement_pourcentage: statutMap[route.statut] || 0,
+            date: route.date_creation || admin.firestore.Timestamp.now()
+          });
+        }
+      } catch (err) {
+        console.warn('⚠️ Erreur en ajoutant images/historique pour', route.id, err);
+      }
     }
 
     // 6. Importer les settings

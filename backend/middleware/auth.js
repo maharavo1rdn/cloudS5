@@ -8,6 +8,7 @@ const authenticateToken = (req, res, next) => {
   console.log('[authenticateToken] Has token:', !!token);
 
   if (!token) {
+    console.log('❌ Token manquant');
     return res.status(401).json({ message: 'Token manquant' });
   }
 

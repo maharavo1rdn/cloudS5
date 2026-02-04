@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore, enableNetwork, disableNetwork, connectFirestoreEmulator } from 'firebase/firestore';
+import { getStorage, connectStorageEmulator } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -16,10 +17,14 @@ const app = initializeApp(firebaseConfig);
 // Initialiser Firestore avec persistance
 const db = getFirestore(app);
 
+// Initialiser Firebase Storage
+const storage = getStorage(app);
+
 // Activer la persistance hors ligne
 // Note: En développement, on peut utiliser l'émulateur si nécessaire
 if (import.meta.env.DEV && import.meta.env.VITE_USE_FIRESTORE_EMULATOR === 'true') {
   connectFirestoreEmulator(db, 'localhost', 8080);
+  connectStorageEmulator(storage, 'localhost', 9199);
 }
 
-export { db, enableNetwork, disableNetwork };
+export { db, storage, enableNetwork, disableNetwork };

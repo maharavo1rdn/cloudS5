@@ -103,8 +103,17 @@ router.post('/pull', async (req, res) => {
     // Préparer le mapping des statuts Firebase -> SQL
     const pointStatuts = await PointStatut.findAll();
     const statutByCode = new Map(pointStatuts.map(ps => [ps.code, ps.id]));
+    const statutById = new Map(pointStatuts.map(ps => [ps.id, ps.code]));
     const statutIds = new Set(pointStatuts.map(ps => ps.id));
     const defaultStatutId = statutByCode.get('A_FAIRE') || pointStatuts[0]?.id || null;
+
+    // Mapping status -> avancement (server-side business rule)
+    const statutToAvancement = {
+      'A_FAIRE': 0,
+      'EN_COURS': 50,
+      'TERMINE': 100,
+      'NOUVEAU': 0
+    };
 
     const resolvePointStatutId = (fbPoint) => {
       // Priorité: id déjà présent et valide
@@ -149,6 +158,12 @@ router.post('/pull', async (req, res) => {
           const localUpdatedAt = new Date(existingPoint.updated_at);
           
           if (fbUpdatedAt > localUpdatedAt) {
+            // Determine avancement based on resolved statut (server-side rule)
+            const resolvedStatutCode = statutById.get(resolvedPointStatutId) || null;
+            const computedAvancement = (resolvedStatutCode && statutToAvancement[resolvedStatutCode] !== undefined)
+              ? statutToAvancement[resolvedStatutCode]
+              : (fbPoint.avancement_pourcentage ?? existingPoint.avancement_pourcentage);
+
             await existingPoint.update({
               probleme_id: fbPoint.probleme_id || null,
               surface_m2: fbPoint.surface_m2 ?? null,
@@ -157,7 +172,7 @@ router.post('/pull', async (req, res) => {
               date_detection: fbPoint.date_detection || existingPoint.date_detection,
               date_debut: fbPoint.date_debut || null,
               date_fin: fbPoint.date_fin || null,
-              avancement_pourcentage: fbPoint.avancement_pourcentage ?? existingPoint.avancement_pourcentage,
+              avancement_pourcentage: computedAvancement,
               latitude: fbPoint.latitude ?? existingPoint.latitude,
               longitude: fbPoint.longitude ?? existingPoint.longitude,
               point_statut_id: resolvedPointStatutId,
@@ -217,6 +232,12 @@ router.post('/pull', async (req, res) => {
           }
 
           // Créer nouveau point avec FK résolues
+          // Compute avancement based on resolved statut (server-side rule)
+          const resolvedStatutCodeForCreate = statutById.get(resolvedPointStatutId) || null;
+          const computedAvancementForCreate = (resolvedStatutCodeForCreate && statutToAvancement[resolvedStatutCodeForCreate] !== undefined)
+            ? statutToAvancement[resolvedStatutCodeForCreate]
+            : (fbPoint.avancement_pourcentage ?? 0);
+
           await Point.create({
             probleme_id: resolvedProblemeId,
             surface_m2: fbPoint.surface_m2 ?? null,
@@ -225,7 +246,7 @@ router.post('/pull', async (req, res) => {
             date_detection: fbPoint.date_detection || new Date(),
             date_debut: fbPoint.date_debut || null,
             date_fin: fbPoint.date_fin || null,
-            avancement_pourcentage: fbPoint.avancement_pourcentage ?? 0,
+            avancement_pourcentage: computedAvancementForCreate,
             latitude: fbPoint.latitude ?? null,
             longitude: fbPoint.longitude ?? null,
             point_statut_id: resolvedPointStatutId,
