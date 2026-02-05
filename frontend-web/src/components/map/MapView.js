@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import routesAPI from '../../services/routesAPI';
 import { pointsAPI } from '../../services/api';
+import PhotoGalleryModal from '../gallery/PhotoGalleryModal';
 import './MapView.css';
 
 // Corriger les icônes Leaflet
@@ -79,6 +80,33 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
   const [showFilter, setShowFilter] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createPosition, setCreatePosition] = useState(null);
+  const [showGallery, setShowGallery] = useState(false);
+  const [galleryImages, setGalleryImages] = useState([]);
+
+  const openGalleryForPoint = async (pointId) => {
+    try {
+      setGalleryImages([]);
+      setLoading(true);
+      const data = await routesAPI.getPointById(pointId);
+      const imgs = (data.images || []).map(i => ({ id: i.id, image_url: i.image_url, firebase_url: i.firebase_url, created_at: i.created_at }));
+      if (!imgs.length) {
+        alert('Aucune photo disponible pour ce point.');
+        return;
+      }
+      setGalleryImages(imgs);
+      setShowGallery(true);
+    } catch (err) {
+      console.error('Erreur récupération images:', err);
+      alert('Erreur lors du chargement des photos');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const closeGallery = () => {
+    setShowGallery(false);
+    setGalleryImages([]);
+  };
 
   // Position initiale : Antananarivo
   const centerPosition = [-18.8792, 47.5079];
@@ -469,13 +497,12 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
                 }}
               >
                 {/* Tooltip au survol */}
-                {hoveredMarker === point.id && (
-                  <Tooltip
-                    direction="top"
-                    offset={[0, -20]}
-                    permanent={false}
-                    className="marker-tooltip"
-                  >
+                <Tooltip
+                  direction="top"
+                  offset={[0, -20]}
+                  permanent={hoveredMarker === point.id}
+                  className="marker-tooltip"
+                >
                     <div className="tooltip-content">
                       <div className="tooltip-header">
                         <span 
@@ -507,7 +534,6 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
                       </div>
                     </div>
                   </Tooltip>
-                )}
               </Marker>
             );
           })}
@@ -526,12 +552,10 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
           )}
 
           {/* Popup détaillé au clic */}
-          {popupInfo && (() => {
-            const [lat, lng] = parseCoords(popupInfo.latitude, popupInfo.longitude);
-            
-            return (
+          {popupInfo && (
+            <>
               <Popup
-                position={[lat, lng]}
+                position={[parseFloat(popupInfo.latitude || 0), parseFloat(popupInfo.longitude || 0)]}
                 onClose={() => setPopupInfo(null)}
                 className="custom-popup"
               >
@@ -547,7 +571,7 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
                   </div>
                   <h3>{popupInfo.probleme || popupInfo.description}</h3>
                   <p className="popup-address">
-                    Coordonnées: {formatCoordonnees(lat, lng, 6)}
+                    Coordonnées: {formatCoordonnees(popupInfo.latitude, popupInfo.longitude, 6)}
                   </p>
                   <div className="popup-info-grid">
                     <div className="popup-info-item">
@@ -570,6 +594,13 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
                       <span className="label">Entreprise</span>
                       <span className="value">{popupInfo.entreprise?.nom || 'Non assignée'}</span>
                     </div>
+
+                    {/* Lien pour voir les photos */}
+                    <div className="popup-info-item full-width">
+                      <button className="btn-view-photos" onClick={() => openGalleryForPoint(popupInfo.id)}>
+                        Voir les photos
+                      </button>
+                    </div>
                     {popupInfo.dateDebut && (
                       <div className="popup-info-item">
                         <span className="label">Début travaux</span>
@@ -585,8 +616,10 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
                   </div>
                 </div>
               </Popup>
-            );
-          })()}
+
+              <PhotoGalleryModal isOpen={showGallery} images={galleryImages} initialIndex={0} onClose={closeGallery} />
+            </>
+          )}
 
           <MapClickHandler 
             setPopupInfo={setPopupInfo} 

@@ -98,6 +98,8 @@ export const PointProvider = ({ children }) => {
       if (updates.longitude) apiUpdates.longitude = updates.longitude;
       if (updates.date_modification) apiUpdates.date_modification = updates.date_modification;
       if (updates.commentaire) apiUpdates.commentaire = updates.commentaire;
+      if (updates.date_debut !== undefined) apiUpdates.date_debut = updates.date_debut;
+      if (updates.date_fin !== undefined) apiUpdates.date_fin = updates.date_fin;
       
       await pointsAPI.update(id, apiUpdates);
       

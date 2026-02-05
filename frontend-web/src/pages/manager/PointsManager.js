@@ -34,7 +34,9 @@ const PointsManager = () => {
     surface: '',
     budget: '',
     entreprise: '',
-    status: 'A_FAIRE'
+    status: 'A_FAIRE',
+    date_debut: '',
+    date_fin: ''
   });
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -99,7 +101,9 @@ const PointsManager = () => {
         surface: '',
         budget: '',
         entreprise: '',
-        status: 'A_FAIRE'
+        status: 'A_FAIRE',
+        date_debut: '',
+        date_fin: ''
       });
     } catch (error) {
       alert('Erreur: ' + error.message);
@@ -299,6 +303,24 @@ const PointsManager = () => {
                   />
                 </div>
               </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Date début</label>
+                  <input
+                    type="date"
+                    value={newPoint.date_debut}
+                    onChange={(e) => setNewPoint({...newPoint, date_debut: e.target.value})}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Date fin</label>
+                  <input
+                    type="date"
+                    value={newPoint.date_fin}
+                    onChange={(e) => setNewPoint({...newPoint, date_fin: e.target.value})}
+                  />
+                </div>
+              </div>
               <div className="form-group">
                 <label>Entreprise</label>
                 <input
@@ -382,6 +404,24 @@ const PointsManager = () => {
                       type="number"
                       value={editData.budget}
                       onChange={(e) => setEditData({...editData, budget: parseFloat(e.target.value)})}
+                    />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Date début</label>
+                    <input
+                      type="date"
+                      value={editData.date_debut || ''}
+                      onChange={(e) => setEditData({...editData, date_debut: e.target.value})}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Date fin</label>
+                    <input
+                      type="date"
+                      value={editData.date_fin || ''}
+                      onChange={(e) => setEditData({...editData, date_fin: e.target.value})}
                     />
                   </div>
                 </div>
