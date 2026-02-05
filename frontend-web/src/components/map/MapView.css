@@ -801,7 +801,7 @@
   border: none;
 }
 
-/* Modal de création de signalement */
+/* Modal de création de point */
 .create-modal-overlay {
   position: fixed;
   top: 0;
