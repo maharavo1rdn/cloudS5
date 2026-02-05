@@ -1,17 +1,17 @@
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import { 
-  Navigation, 
-  LogIn, 
-  LogOut, 
+import React from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import {
+  Navigation,
+  LogIn,
+  LogOut,
   User,
   Menu,
   X,
-  RefreshCw
-} from 'lucide-react';
-import SyncModal from '../../components/SyncModal';
-import './Header.css';
+  RefreshCw,
+} from "lucide-react";
+import SyncModal from "../../components/SyncModal";
+import "./Header.css";
 
 const Header = () => {
   const { user, logout, isManager } = useAuth();
@@ -19,9 +19,14 @@ const Header = () => {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [showSyncModal, setShowSyncModal] = React.useState(false);
 
+  const canManage = React.useMemo(
+    () => typeof isManager === "function" && isManager(user),
+    [isManager, user]
+  );
+
   const handleLogout = () => {
     logout();
-    navigate('/');
+    navigate("/");
     setMenuOpen(false);
   };
 
@@ -41,29 +46,45 @@ const Header = () => {
 
         {/* Navigation Desktop */}
         <nav className="header-nav desktop-nav">
-          <Link to="/" className="nav-link">Accueil</Link>
-          
-          {user && isManager() && (
+          <Link to="/" className="nav-link">
+            Accueil
+          </Link>
+
+          {user && canManage && (
             <>
-              <Link to="/manager/points" className="nav-link">Gestion Points</Link>
-              <Link to="/manager/users" className="nav-link">Utilisateurs</Link>
+              <Link to="/manager/points" className="nav-link">
+                Gestion Points
+              </Link>
+              <Link to="/manager/users" className="nav-link">
+                Utilisateurs
+              </Link>
             </>
           )}
         </nav>
 
-        {/* Actions utilisateur */}
         <div className="header-actions desktop-nav">
-            <button className="btn-sync" onClick={() => setShowSyncModal(true)} title="Synchroniser avec Firebase">
+          {user && canManage && (
+            <button
+              type="button"
+              className="btn-sync"
+              onClick={() => setShowSyncModal(true)}
+              title="Synchroniser avec Firebase"
+              aria-label="Synchroniser avec Firebase"
+            >
               <RefreshCw size={16} />
               Synchroniser
             </button>
+          )}
 
+        {/* Actions utilisateur */}
           {user ? (
             <div className="user-menu">
               <div className="user-info">
                 <User size={18} />
-                <span>{user.prenom} {user.nom}</span>
-                {isManager() && <span className="badge-manager">Manager</span>}
+                <span>
+                  {user.prenom} {user.nom}
+                </span>
+                {canManage && <span className="badge-manager">Manager</span>}
               </div>
               <button onClick={handleLogout} className="btn-logout">
                 <LogOut size={18} />
@@ -79,10 +100,7 @@ const Header = () => {
         </div>
 
         {/* Menu burger mobile */}
-        <button 
-          className="menu-toggle"
-          onClick={() => setMenuOpen(!menuOpen)}
-        >
+        <button className="menu-toggle" onClick={() => setMenuOpen(!menuOpen)}>
           {menuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
       </div>
@@ -90,25 +108,48 @@ const Header = () => {
       {/* Menu mobile */}
       {menuOpen && (
         <div className="mobile-menu">
-          <Link to="/" className="mobile-nav-link" onClick={() => setMenuOpen(false)}>
+          <Link
+            to="/"
+            className="mobile-nav-link"
+            onClick={() => setMenuOpen(false)}
+          >
             Accueil
           </Link>
 
-          {user && isManager() && (
+          {user && canManage && (
             <>
-              <Link to="/manager/points" className="mobile-nav-link" onClick={() => setMenuOpen(false)}>
+              <Link
+                to="/manager/points"
+                className="mobile-nav-link"
+                onClick={() => setMenuOpen(false)}
+              >
                 Gestion Points
               </Link>
-              <Link to="/manager/users" className="mobile-nav-link" onClick={() => setMenuOpen(false)}>
+              <Link
+                to="/manager/users"
+                className="mobile-nav-link"
+                onClick={() => setMenuOpen(false)}
+              >
                 Utilisateurs
               </Link>
             </>
           )}
 
-          <button className="mobile-nav-link" onClick={() => { setMenuOpen(false); setShowSyncModal(true); }}>
-            <RefreshCw size={16} />
-            Synchroniser
-          </button>
+          {user && canManage && (
+            <button
+              type="button"
+              className="mobile-nav-link"
+              onClick={() => {
+                setMenuOpen(false);
+                setShowSyncModal(true);
+              }}
+              title="Synchroniser avec Firebase"
+              aria-label="Synchroniser avec Firebase"
+            >
+              <RefreshCw size={16} />
+              Synchroniser
+            </button>
+          )}
 
           <div className="mobile-divider"></div>
 
@@ -116,8 +157,10 @@ const Header = () => {
             <>
               <div className="mobile-user-info">
                 <User size={18} />
-                <span>{user.prenom} {user.nom}</span>
-                {isManager() && <span className="badge-manager">Manager</span>}
+                <span>
+                  {user.prenom} {user.nom}
+                </span>
+                {canManage && <span className="badge-manager">Manager</span>}
               </div>
               <button onClick={handleLogout} className="mobile-nav-link logout">
                 <LogOut size={18} />
@@ -125,7 +168,11 @@ const Header = () => {
               </button>
             </>
           ) : (
-            <Link to="/login" className="mobile-nav-link" onClick={() => setMenuOpen(false)}>
+            <Link
+              to="/login"
+              className="mobile-nav-link"
+              onClick={() => setMenuOpen(false)}
+            >
               <LogIn size={18} />
               Connexion
             </Link>
@@ -134,7 +181,10 @@ const Header = () => {
       )}
 
       {showSyncModal && (
-        <SyncModal isOpen={showSyncModal} onClose={() => setShowSyncModal(false)} />
+        <SyncModal
+          isOpen={showSyncModal}
+          onClose={() => setShowSyncModal(false)}
+        />
       )}
     </header>
   );

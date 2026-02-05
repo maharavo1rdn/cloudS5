@@ -85,7 +85,8 @@ class RouteService {
       await this.createHistoEntry(pointRef.id, {
         point_statut_id: null, // On pourrait mapper A_FAIRE -> 1, etc.
         avancement_pourcentage: pointDoc.avancement_pourcentage,
-        date: new Date()
+        // Use the point's date_debut if provided so the history reflects the planned start date
+        date: pointDoc.date_debut || new Date()
       });
 
       const point: Point = {
@@ -362,7 +363,8 @@ class RouteService {
         await this.createHistoEntry(routeId, {
           point_statut_id: null, // Mapper si nécessaire
           avancement_pourcentage: updateData.avancement_pourcentage || 0,
-          date: new Date()
+          // Prefer the provided date_debut if present, otherwise fall back to the stored/updated date_debut or now
+          date: updates.date_debut || updateData.date_debut || new Date()
         });
       }
     } catch (error) {

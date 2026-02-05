@@ -239,6 +239,20 @@ const routesAPI = {
     }
   },
 
+  // ========== POINT DETAIL ==========
+  /**
+   * Récupérer un point complet par ID (inclut images)
+   */
+  getPointById: async (pointId) => {
+    try {
+      const data = await apiCall(`/points/${pointId}`);
+      return data;
+    } catch (error) {
+      console.error(`Erreur dans getPointById(${pointId}):`, error);
+      throw error;
+    }
+  },
+
   /**
    * Récupérer tous les types de problèmes
    */

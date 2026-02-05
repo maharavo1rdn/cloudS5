@@ -96,7 +96,8 @@ Point.addHook('afterUpdate', async (point, options) => {
         point_id: point.id,
         point_statut_id: point.point_statut_id,
         avancement_pourcentage: point.avancement_pourcentage,
-        date: new Date()
+        // Use point.date_debut if available so historical entries reference the planned start date
+        date: point.date_debut ? new Date(point.date_debut) : new Date()
       }, { transaction: options.transaction });
       
       console.log(`✅ Historique créé pour point ${point.id}`);
@@ -116,7 +117,8 @@ Point.addHook('afterCreate', async (point, options) => {
       point_id: point.id,
       point_statut_id: point.point_statut_id,
       avancement_pourcentage: point.avancement_pourcentage || 0,
-      date: new Date()
+      // Use point.date_debut if provided, otherwise fall back to now
+      date: point.date_debut ? new Date(point.date_debut) : new Date()
     }, { transaction: options.transaction });
     
     console.log(`✅ Historique initial créé pour point ${point.id}`);

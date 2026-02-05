@@ -3,6 +3,7 @@ import Point from '../models/Point.js';
 import PointStatut from '../models/PointStatut.js';
 import Probleme from '../models/Probleme.js';
 import Entreprise from '../models/Entreprise.js';
+import PointImage from '../models/PointImage.js';
 import authenticateToken from '../middleware/auth.js';
 
 const router = Router();
@@ -51,7 +52,8 @@ router.get('/:id', async (req, res) => {
       include: [
         { model: Probleme, as: 'probleme' },
         { model: Entreprise, as: 'entreprise' },
-        { model: PointStatut, as: 'statut' }
+        { model: PointStatut, as: 'statut' },
+        { model: PointImage, as: 'images', attributes: ['id', 'image_url', 'firebase_url', 'created_at'] }
       ]
     });
     if (!point) return res.status(404).json({ message: 'Point non trouvé' });
