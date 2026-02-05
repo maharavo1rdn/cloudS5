@@ -2,14 +2,14 @@ import React from 'react';
 import MapView from '../components/map/MapView';
 import RecapTable from '../components/recap/RecapTable';
 import { useAuth } from '../context/AuthContext';
-import { useSignalements } from '../context/SignalementContext';
+import { usePoints } from '../context/PointContext';
 import { useRoutes } from '../context/RoutesContext';
 import { RefreshCw, Download, CloudUpload } from 'lucide-react';
 import './HomePage.css';
 
 const HomePage = () => {
   const { user, isManager } = useAuth();
-  const { syncWithFirebase, fetchFromFirebase, loading } = useSignalements();
+  const { syncWithFirebase, fetchFromFirebase, loading } = usePoints();
   const { recapitulatif, loadRecapitulatif, problemes, statuts, loadRoutesEnTravaux, loadProblemes, loadStatuts } = useRoutes();
   const [syncing, setSyncing] = React.useState(false);
 
@@ -21,6 +21,7 @@ const HomePage = () => {
   const [newSurface, setNewSurface] = React.useState('');
   const [newBudget, setNewBudget] = React.useState('');
   const [newDateDebut, setNewDateDebut] = React.useState('');
+  const [newDateFin, setNewDateFin] = React.useState('');
   const [newStatut, setNewStatut] = React.useState('');
 
   React.useEffect(() => {
@@ -118,7 +119,8 @@ const HomePage = () => {
                   <input placeholder="Budget" value={newBudget} onChange={e => setNewBudget(e.target.value)} />
                 </div>
                 <div className="form-row">
-                  <input type="date" value={newDateDebut} onChange={e => setNewDateDebut(e.target.value)} />
+                  <input type="date" placeholder="Date début" value={newDateDebut} onChange={e => setNewDateDebut(e.target.value)} />
+                  <input type="date" placeholder="Date fin" value={newDateFin} onChange={e => setNewDateFin(e.target.value)} />
                 </div>
                 <div className="form-actions">
                   <button onClick={async () => {
@@ -131,11 +133,12 @@ const HomePage = () => {
                         surface_m2: newSurface ? parseFloat(newSurface) : null,
                         budget: newBudget ? parseFloat(newBudget) : null,
                         date_debut: newDateDebut || null,
+                        date_fin: newDateFin || null,
                         point_statut_code: newStatut || undefined
                       });
                       alert('Point créé');
                       setShowCreatePoint(false);
-                      setNewLat(''); setNewLon(''); setNewSurface(''); setNewBudget(''); setNewDateDebut('');
+                      setNewLat(''); setNewLon(''); setNewSurface(''); setNewBudget(''); setNewDateDebut(''); setNewDateFin('');
                       await loadRecapitulatif();
                       await loadRoutesEnTravaux();
                     } catch (err) {

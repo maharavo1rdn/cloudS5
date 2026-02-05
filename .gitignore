@@ -19,3 +19,5 @@ sujet/
 scripts/*.json
 *.firebase-adminsdk*.json
 backend/config/serviceAccountKey.json
+# Ignore service account keys
+backend/config/serviceAccountKey*

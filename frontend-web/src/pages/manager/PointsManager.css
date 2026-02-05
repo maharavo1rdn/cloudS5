@@ -106,13 +106,13 @@
   border-color: #1e293b;
 }
 
-/* Liste des signalements */
-.signalements-list {
+/* Liste des points */
+.points-list {
   display: grid;
   gap: 16px;
 }
 
-.signalement-card {
+.point-card {
   background: white;
   border-radius: 12px;
   padding: 20px;

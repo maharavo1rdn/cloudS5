@@ -1,5 +1,4 @@
 import { Op, Sequelize } from 'sequelize';
-import Signalement from '../models/Signalement.js';
 import Point from '../models/Point.js';
 import Probleme from '../models/Probleme.js';
 import Entreprise from '../models/Entreprise.js';
@@ -12,7 +11,7 @@ class RouteService {
    */
   static async getRoutesEnTravaux() {
     try {
-      const signalements = await Signalement.findAll({
+      const signalements = await Point.findAll({
         include: [
           {
             model: Probleme,
@@ -23,13 +22,17 @@ class RouteService {
             model: Entreprise,
             as: 'entreprise',
             attributes: ['id', 'nom', 'email', 'telephone']
+          },
+          {
+            model: PointStatut,
+            as: 'statut',
+            attributes: ['id', 'code', 'description']
           }
         ],
         attributes: [
           'id',
           'nom',
           'description',
-          'statut',
           'surface_m2',
           'budget',
           'date_detection',
@@ -73,6 +76,11 @@ class RouteService {
             model: Entreprise,
             as: 'entreprise',
             attributes: ['id', 'nom', 'email', 'telephone']
+          },
+          {
+            model: PointStatut,
+            as: 'statut',
+            attributes: ['id', 'code', 'description']
           }
         ],
         attributes: [
@@ -125,6 +133,11 @@ class RouteService {
             model: Entreprise,
             as: 'entreprise',
             attributes: ['id', 'nom', 'email', 'telephone']
+          },
+          {
+            model: PointStatut,
+            as: 'statut',
+            attributes: ['id', 'code', 'description']
           }
         ],
         attributes: [

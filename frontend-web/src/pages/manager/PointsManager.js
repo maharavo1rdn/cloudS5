@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { useSignalements } from '../../context/SignalementContext';
+import React, { useState } from 'react';
+import { usePoints } from '../../context/PointContext';
+import { useAuth } from '../../context/AuthContext';
 import { 
   Edit2, 
   Trash2, 
@@ -7,25 +8,25 @@ import {
   X, 
   Plus,
   Search,
-  Filter,
   AlertCircle,
   Clock,
   CheckCircle,
   History,
   TrendingUp
 } from 'lucide-react';
-import './SignalementsManager.css';
+import './PointsManager.css';
 
-const SignalementsManager = () => {
-  const { signalements, updateSignalement, deleteSignalement, addSignalement, loading } = useSignalements();
+const PointsManager = () => {
+  const { points, updatePoint, deletePoint, addPoint } = usePoints();
+  const { isManager } = useAuth();
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({});
   const [showAddForm, setShowAddForm] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [selectedSignalement, setSelectedSignalement] = useState(null);
+  const [selectedPoint, setSelectedPoint] = useState(null);
   const [historique, setHistorique] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const [newSignalement, setNewSignalement] = useState({
+  const [newPoint, setNewPoint] = useState({
     latitude: -18.8792,
     longitude: 47.5079,
     description: '',
@@ -33,23 +34,25 @@ const SignalementsManager = () => {
     surface: '',
     budget: '',
     entreprise: '',
-    status: 'nouveau'
+    status: 'A_FAIRE',
+    date_debut: '',
+    date_fin: ''
   });
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Filtrer les signalements
-  const filteredSignalements = signalements.filter(s => {
-    const matchesStatus = filterStatus === 'all' || s.status === filterStatus;
-    const matchesSearch = s.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         s.adresse.toLowerCase().includes(searchTerm.toLowerCase());
+  // Filtrer les points
+  const filteredPoints = points.filter(p => {
+    const matchesStatus = filterStatus === 'all' || p.status === filterStatus;
+    const matchesSearch = p.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         p.adresse.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesStatus && matchesSearch;
   });
 
   // Commencer l'édition
-  const startEdit = (signalement) => {
-    setEditingId(signalement.id);
-    setEditData({ ...signalement });
+  const startEdit = (point) => {
+    setEditingId(point.id);
+    setEditData({ ...point });
   };
 
   // Annuler l'édition
@@ -61,7 +64,7 @@ const SignalementsManager = () => {
   // Sauvegarder les modifications
   const saveEdit = async () => {
     try {
-      await updateSignalement(editingId, editData);
+      await updatePoint(editingId, editData);
       setEditingId(null);
       setEditData({});
     } catch (error) {
@@ -69,28 +72,28 @@ const SignalementsManager = () => {
     }
   };
 
-  // Supprimer un signalement
+  // Supprimer un point
   const handleDelete = async (id) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce signalement ?')) {
+    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce point ?')) {
       try {
-        await deleteSignalement(id);
+        await deletePoint(id);
       } catch (error) {
         alert('Erreur: ' + error.message);
       }
     }
   };
 
-  // Ajouter un nouveau signalement
+  // Ajouter un nouveau point
   const handleAdd = async (e) => {
     e.preventDefault();
     try {
-      await addSignalement({
-        ...newSignalement,
-        surface: parseFloat(newSignalement.surface) || 0,
-        budget: parseFloat(newSignalement.budget) || 0
+      await addPoint({
+        ...newPoint,
+        surface: parseFloat(newPoint.surface) || 0,
+        budget: parseFloat(newPoint.budget) || 0
       });
       setShowAddForm(false);
-      setNewSignalement({
+      setNewPoint({
         latitude: -18.8792,
         longitude: 47.5079,
         description: '',
@@ -98,7 +101,9 @@ const SignalementsManager = () => {
         surface: '',
         budget: '',
         entreprise: '',
-        status: 'nouveau'
+        status: 'A_FAIRE',
+        date_debut: '',
+        date_fin: ''
       });
     } catch (error) {
       alert('Erreur: ' + error.message);
@@ -108,22 +113,19 @@ const SignalementsManager = () => {
   // Calculer le pourcentage d'avancement selon le statut
   const getAvancementPourcentage = (status) => {
     const statusMap = {
-      'nouveau': 0,
-      'NOUVEAU': 0,
-      'en_cours': 50,
+      'A_FAIRE': 0,
       'EN_COURS': 50,
-      'termine': 100,
       'TERMINE': 100
     };
     return statusMap[status] || 0;
   };
 
-  // Charger l'historique d'un signalement
-  const loadHistory = async (signalementId) => {
+  // Charger l'historique d'un point
+  const loadHistory = async (pointId) => {
     setLoadingHistory(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3000/api/signalements/${signalementId}`, {
+      const response = await fetch(`http://localhost:3000/api/points/${pointId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -135,7 +137,7 @@ const SignalementsManager = () => {
       
       const data = await response.json();
       setHistorique(data.historiques || []);
-      setSelectedSignalement(data);
+      setSelectedPoint(data);
       setShowHistoryModal(true);
     } catch (error) {
       console.error('Erreur:', error);
@@ -148,14 +150,11 @@ const SignalementsManager = () => {
   // Status badge avec pourcentage
   const StatusBadge = ({ status, showPercentage = false }) => {
     const config = {
-      nouveau: { icon: AlertCircle, color: '#ef4444', label: 'Nouveau' },
-      NOUVEAU: { icon: AlertCircle, color: '#ef4444', label: 'Nouveau' },
-      en_cours: { icon: Clock, color: '#f59e0b', label: 'En cours' },
+      A_FAIRE: { icon: AlertCircle, color: '#ef4444', label: 'À faire' },
       EN_COURS: { icon: Clock, color: '#f59e0b', label: 'En cours' },
-      termine: { icon: CheckCircle, color: '#22c55e', label: 'Terminé' },
       TERMINE: { icon: CheckCircle, color: '#22c55e', label: 'Terminé' }
     };
-    const { icon: Icon, color, label } = config[status] || config.nouveau;
+    const { icon: Icon, color, label } = config[status] || config.A_FAIRE;
     const percentage = getAvancementPourcentage(status);
     
     return (
@@ -183,12 +182,12 @@ const SignalementsManager = () => {
     <div className="manager-container">
       <div className="manager-header">
         <div>
-          <h1>Gestion des Signalements</h1>
-          <p>{signalements.length} signalements au total</p>
+          <h1>Gestion des Points</h1>
+          <p>{points.length} points au total</p>
         </div>
         <button className="btn-add" onClick={() => setShowAddForm(true)}>
           <Plus size={18} />
-          Nouveau Signalement
+          Nouveau Point
         </button>
       </div>
 
@@ -211,20 +210,20 @@ const SignalementsManager = () => {
             Tous
           </button>
           <button 
-            className={`filter-btn ${filterStatus === 'nouveau' ? 'active' : ''}`}
-            onClick={() => setFilterStatus('nouveau')}
+            className={`filter-btn ${filterStatus === 'A_FAIRE' ? 'active' : ''}`}
+            onClick={() => setFilterStatus('A_FAIRE')}
           >
-            Nouveaux
+            À faire
           </button>
           <button 
-            className={`filter-btn ${filterStatus === 'en_cours' ? 'active' : ''}`}
-            onClick={() => setFilterStatus('en_cours')}
+            className={`filter-btn ${filterStatus === 'EN_COURS' ? 'active' : ''}`}
+            onClick={() => setFilterStatus('EN_COURS')}
           >
             En cours
           </button>
           <button 
-            className={`filter-btn ${filterStatus === 'termine' ? 'active' : ''}`}
-            onClick={() => setFilterStatus('termine')}
+            className={`filter-btn ${filterStatus === 'TERMINE' ? 'active' : ''}`}
+            onClick={() => setFilterStatus('TERMINE')}
           >
             Terminés
           </button>
@@ -236,7 +235,7 @@ const SignalementsManager = () => {
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
-              <h2>Nouveau Signalement</h2>
+              <h2>Nouveau Point</h2>
               <button className="modal-close" onClick={() => setShowAddForm(false)}>
                 <X size={20} />
               </button>
@@ -248,8 +247,8 @@ const SignalementsManager = () => {
                   <input
                     type="number"
                     step="0.0001"
-                    value={newSignalement.latitude}
-                    onChange={(e) => setNewSignalement({...newSignalement, latitude: parseFloat(e.target.value)})}
+                    value={newPoint.latitude}
+                    onChange={(e) => setNewPoint({...newPoint, latitude: parseFloat(e.target.value)})}
                     required
                   />
                 </div>
@@ -258,8 +257,8 @@ const SignalementsManager = () => {
                   <input
                     type="number"
                     step="0.0001"
-                    value={newSignalement.longitude}
-                    onChange={(e) => setNewSignalement({...newSignalement, longitude: parseFloat(e.target.value)})}
+                    value={newPoint.longitude}
+                    onChange={(e) => setNewPoint({...newPoint, longitude: parseFloat(e.target.value)})}
                     required
                   />
                 </div>
@@ -268,8 +267,8 @@ const SignalementsManager = () => {
                 <label>Description</label>
                 <input
                   type="text"
-                  value={newSignalement.description}
-                  onChange={(e) => setNewSignalement({...newSignalement, description: e.target.value})}
+                  value={newPoint.description}
+                  onChange={(e) => setNewPoint({...newPoint, description: e.target.value})}
                   placeholder="Description du problème"
                   required
                 />
@@ -278,8 +277,8 @@ const SignalementsManager = () => {
                 <label>Adresse</label>
                 <input
                   type="text"
-                  value={newSignalement.adresse}
-                  onChange={(e) => setNewSignalement({...newSignalement, adresse: e.target.value})}
+                  value={newPoint.adresse}
+                  onChange={(e) => setNewPoint({...newPoint, adresse: e.target.value})}
                   placeholder="Adresse ou lieu"
                   required
                 />
@@ -289,8 +288,8 @@ const SignalementsManager = () => {
                   <label>Surface (m²)</label>
                   <input
                     type="number"
-                    value={newSignalement.surface}
-                    onChange={(e) => setNewSignalement({...newSignalement, surface: e.target.value})}
+                    value={newPoint.surface}
+                    onChange={(e) => setNewPoint({...newPoint, surface: e.target.value})}
                     placeholder="0"
                   />
                 </div>
@@ -298,9 +297,27 @@ const SignalementsManager = () => {
                   <label>Budget (Ar)</label>
                   <input
                     type="number"
-                    value={newSignalement.budget}
-                    onChange={(e) => setNewSignalement({...newSignalement, budget: e.target.value})}
+                    value={newPoint.budget}
+                    onChange={(e) => setNewPoint({...newPoint, budget: e.target.value})}
                     placeholder="0"
+                  />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Date début</label>
+                  <input
+                    type="date"
+                    value={newPoint.date_debut}
+                    onChange={(e) => setNewPoint({...newPoint, date_debut: e.target.value})}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Date fin</label>
+                  <input
+                    type="date"
+                    value={newPoint.date_fin}
+                    onChange={(e) => setNewPoint({...newPoint, date_fin: e.target.value})}
                   />
                 </div>
               </div>
@@ -308,8 +325,8 @@ const SignalementsManager = () => {
                 <label>Entreprise</label>
                 <input
                   type="text"
-                  value={newSignalement.entreprise}
-                  onChange={(e) => setNewSignalement({...newSignalement, entreprise: e.target.value})}
+                  value={newPoint.entreprise}
+                  onChange={(e) => setNewPoint({...newPoint, entreprise: e.target.value})}
                   placeholder="Nom de l'entreprise"
                 />
               </div>
@@ -327,11 +344,11 @@ const SignalementsManager = () => {
         </div>
       )}
 
-      {/* Liste des signalements */}
-      <div className="signalements-list">
-        {filteredSignalements.map(signalement => (
-          <div key={signalement.id} className="signalement-card">
-            {editingId === signalement.id ? (
+      {/* Liste des points */}
+      <div className="points-list">
+        {filteredPoints.map(point => (
+          <div key={point.id} className="point-card">
+            {editingId === point.id ? (
               // Mode édition
               <div className="edit-mode">
                 <div className="form-row">
@@ -349,9 +366,9 @@ const SignalementsManager = () => {
                       value={editData.status}
                       onChange={(e) => setEditData({...editData, status: e.target.value})}
                     >
-                      <option value="nouveau">Nouveau</option>
-                      <option value="en_cours">En cours</option>
-                      <option value="termine">Terminé</option>
+                      <option value="A_FAIRE">À faire</option>
+                      <option value="EN_COURS">En cours</option>
+                      <option value="TERMINE">Terminé</option>
                     </select>
                   </div>
                 </div>
@@ -390,6 +407,24 @@ const SignalementsManager = () => {
                     />
                   </div>
                 </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Date début</label>
+                    <input
+                      type="date"
+                      value={editData.date_debut || ''}
+                      onChange={(e) => setEditData({...editData, date_debut: e.target.value})}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Date fin</label>
+                    <input
+                      type="date"
+                      value={editData.date_fin || ''}
+                      onChange={(e) => setEditData({...editData, date_fin: e.target.value})}
+                    />
+                  </div>
+                </div>
                 <div className="form-group">
                   <label>Entreprise</label>
                   <input
@@ -413,11 +448,11 @@ const SignalementsManager = () => {
               // Mode affichage
               <>
                 <div className="card-header">
-                  <StatusBadge status={signalement.status} showPercentage={true} />
-                  <span className="card-date">{signalement.date}</span>
+                  <StatusBadge status={point.status} showPercentage={true} />
+                  <span className="card-date">{point.date}</span>
                 </div>
-                <h3 className="card-title">{signalement.description}</h3>
-                <p className="card-address">{signalement.adresse}</p>
+                <h3 className="card-title">{point.description}</h3>
+                <p className="card-address">{point.adresse}</p>
                 
                 {/* Barre de progression */}
                 <div className="progress-container">
@@ -425,66 +460,72 @@ const SignalementsManager = () => {
                     <div 
                       className="progress-fill" 
                       style={{ 
-                        width: `${getAvancementPourcentage(signalement.status)}%`,
+                        width: `${getAvancementPourcentage(point.status)}%`,
                         backgroundColor: 
-                          signalement.status === 'nouveau' || signalement.status === 'NOUVEAU' ? '#ef4444' :
-                          signalement.status === 'en_cours' || signalement.status === 'EN_COURS' ? '#f59e0b' :
+                          point.status === 'nouveau' || point.status === 'NOUVEAU' ? '#ef4444' :
+                          point.status === 'en_cours' || point.status === 'EN_COURS' ? '#f59e0b' :
                           '#22c55e'
                       }}
                     ></div>
                   </div>
                   <span className="progress-text">
                     <TrendingUp size={14} />
-                    {getAvancementPourcentage(signalement.status)}%
+                    {getAvancementPourcentage(point.status)}%
                   </span>
                 </div>
 
                 <div className="card-details">
                   <div className="detail-item">
                     <span className="detail-label">Surface</span>
-                    <span className="detail-value">{signalement.surface} m²</span>
+                    <span className="detail-value">{point.surface} m²</span>
                   </div>
                   <div className="detail-item">
                     <span className="detail-label">Budget</span>
-                    <span className="detail-value">{signalement.budget.toLocaleString()} Ar</span>
+                    <span className="detail-value">{point.budget.toLocaleString()} Ar</span>
                   </div>
                   <div className="detail-item">
                     <span className="detail-label">Entreprise</span>
-                    <span className="detail-value">{signalement.entreprise || 'Non assignée'}</span>
+                    <span className="detail-value">{point.entreprise || 'Non assignée'}</span>
                   </div>
                 </div>
                 <div className="card-actions">
-                  <button className="btn-edit" onClick={() => startEdit(signalement)}>
-                    <Edit2 size={16} />
-                    Modifier
-                  </button>
-                  <button className="btn-history" onClick={() => loadHistory(signalement.id)}>
+                  {isManager() && (
+                    <>
+                      <button className="btn-edit" onClick={() => startEdit(point)}>
+                        <Edit2 size={16} />
+                        Modifier
+                      </button>
+                    </>
+                  )}
+                  <button className="btn-history" onClick={() => loadHistory(point.id)}>
                     <History size={16} />
                     Historique
                   </button>
-                  <button className="btn-delete" onClick={() => handleDelete(signalement.id)}>
-                    <Trash2 size={16} />
-                    Supprimer
-                  </button>
+                  {isManager() && (
+                    <button className="btn-delete" onClick={() => handleDelete(point.id)}>
+                      <Trash2 size={16} />
+                      Supprimer
+                    </button>
+                  )}
                 </div>
               </>
             )}
           </div>
         ))}
 
-        {filteredSignalements.length === 0 && (
+        {filteredPoints.length === 0 && (
           <div className="no-results">
-            Aucun signalement trouvé
+            Aucun point trouvé
           </div>
         )}
       </div>
 
       {/* Modal Historique */}
-      {showHistoryModal && selectedSignalement && (
+      {showHistoryModal && selectedPoint && (
         <div className="modal-overlay">
           <div className="modal-content modal-large">
             <div className="modal-header">
-              <h2>Historique - {selectedSignalement.description}</h2>
+              <h2>Historique - {selectedPoint.description}</h2>
               <button className="modal-close" onClick={() => setShowHistoryModal(false)}>
                 <X size={20} />
               </button>
@@ -538,4 +579,4 @@ const SignalementsManager = () => {
   );
 };
 
-export default SignalementsManager;
+export default PointsManager;
