@@ -88,44 +88,44 @@ export const authAPI = {
   }
 };
 
-// ==================== SIGNALEMENTS API ====================
-export const signalementsAPI = {
-  // Récupérer tous les signalements
+// ==================== POINTS API ====================
+export const pointsAPI = {
+  // Récupérer tous les points
   getAll: async () => {
-    return apiCall('/signalements');
+    return apiCall('/points');
   },
 
-  // Récupérer un signalement par ID
+  // Récupérer un point par ID
   getById: async (id) => {
-    return apiCall(`/signalements/${id}`);
+    return apiCall(`/points/${id}`);
   },
 
-  // Créer un nouveau signalement
-  create: async (signalementData) => {
-    return apiCall('/signalements', {
+  // Créer un nouveau point
+  create: async (pointData) => {
+    return apiCall('/points', {
       method: 'POST',
-      body: JSON.stringify(signalementData)
+      body: JSON.stringify(pointData)
     });
   },
 
-  // Mettre à jour un signalement
-  update: async (id, signalementData) => {
-    return apiCall(`/signalements/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(signalementData)
+  // Mettre à jour un point
+  update: async (id, pointData) => {
+    return apiCall(`/points/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(pointData)
     });
   },
 
-  // Supprimer un signalement
+  // Supprimer un point
   delete: async (id) => {
-    return apiCall(`/signalements/${id}`, {
+    return apiCall(`/points/${id}`, {
       method: 'DELETE'
     });
   },
 
   // Récapitulatif (stats)
   getRecapitulatif: async () => {
-    return apiCall('/signalements/recapitulatif');
+    return apiCall('/points/recapitulatif');
   }
 };
 
@@ -188,26 +188,10 @@ export const syncAPI = {
     });
   },
 
-  // Récupérer les signalements depuis Firebase
+  // Récupérer les points depuis Firebase
   fetchFromFirebase: async () => {
     return apiCall('/sync/firebase/fetch', {
       method: 'GET'
-    });
-  }
-};
-
-// ==================== POINTS API ====================
-export const pointsAPI = {
-  // Récupérer tous les points
-  getAll: async () => {
-    return apiCall('/points');
-  },
-  
-  // Créer un point (Manager)
-  create: async (pointData) => {
-    return apiCall('/points', {
-      method: 'POST',
-      body: JSON.stringify(pointData)
     });
   }
 };

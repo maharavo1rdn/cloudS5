@@ -2,14 +2,14 @@ import React from 'react';
 import MapView from '../components/map/MapView';
 import RecapTable from '../components/recap/RecapTable';
 import { useAuth } from '../context/AuthContext';
-import { useSignalements } from '../context/SignalementContext';
+import { usePoints } from '../context/PointContext';
 import { useRoutes } from '../context/RoutesContext';
 import { RefreshCw, Download, CloudUpload } from 'lucide-react';
 import './HomePage.css';
 
 const HomePage = () => {
   const { user, isManager } = useAuth();
-  const { syncWithFirebase, fetchFromFirebase, loading } = useSignalements();
+  const { syncWithFirebase, fetchFromFirebase, loading } = usePoints();
   const { recapitulatif, loadRecapitulatif, problemes, statuts, loadRoutesEnTravaux, loadProblemes, loadStatuts } = useRoutes();
   const [syncing, setSyncing] = React.useState(false);
 

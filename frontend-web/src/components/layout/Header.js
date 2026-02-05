@@ -5,8 +5,7 @@ import {
   Navigation, 
   LogIn, 
   LogOut, 
-  User, 
-  Settings,
+  User,
   Menu,
   X,
   RefreshCw
@@ -46,7 +45,7 @@ const Header = () => {
           
           {user && isManager() && (
             <>
-              <Link to="/manager/signalements" className="nav-link">Gestion Signalements</Link>
+              <Link to="/manager/points" className="nav-link">Gestion Points</Link>
               <Link to="/manager/users" className="nav-link">Utilisateurs</Link>
             </>
           )}
@@ -97,8 +96,8 @@ const Header = () => {
 
           {user && isManager() && (
             <>
-              <Link to="/manager/signalements" className="mobile-nav-link" onClick={() => setMenuOpen(false)}>
-                Gestion Signalements
+              <Link to="/manager/points" className="mobile-nav-link" onClick={() => setMenuOpen(false)}>
+                Gestion Points
               </Link>
               <Link to="/manager/users" className="mobile-nav-link" onClick={() => setMenuOpen(false)}>
                 Utilisateurs

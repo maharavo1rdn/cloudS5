@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { SignalementProvider } from './context/SignalementContext';
+import { PointProvider } from './context/PointContext';
 import { RoutesProvider } from './context/RoutesContext';
 
 // Components
@@ -10,7 +10,7 @@ import Header from './components/layout/Header';
 // Pages
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
-import SignalementsManager from './pages/manager/SignalementsManager';
+import PointsManager from './pages/manager/PointsManager';
 import UsersManager from './pages/manager/UsersManager';
 
 import './App.css';
@@ -45,10 +45,10 @@ function AppContent() {
             
             {/* Pages Manager - protégées */}
             <Route 
-              path="/manager/signalements" 
+              path="/manager/points" 
               element={
                 <ManagerRoute>
-                  <SignalementsManager />
+                  <PointsManager />
                 </ManagerRoute>
               } 
             />
@@ -73,11 +73,11 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <SignalementProvider>
+      <PointProvider>
         <RoutesProvider>
           <AppContent />
         </RoutesProvider>
-      </SignalementProvider>
+      </PointProvider>
     </AuthProvider>
   );
 }
