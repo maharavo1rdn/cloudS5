@@ -67,6 +67,13 @@
         <span class="error-text">{{ error }}</span>
       </div>
 
+      <!-- Demo credentials for professor -->
+      <div class="demo-credentials">
+        <strong>Identifiants de test :</strong>
+        <div>Manager : <code>manager@gmail.com</code> / <code>password123</code></div>
+        <div>Utilisateur : <code>user@gmail.com</code> / <code>password123</code></div>
+      </div>
+
       <!-- Submit Button -->
       <ion-button
         type="submit"
@@ -86,15 +93,14 @@ import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { IonInput, IonButton, IonSpinner, IonIcon } from '@ionic/vue';
 import { mail, lockClosed, eye, eyeOff, alertCircle } from 'ionicons/icons';
-import { Preferences } from '@capacitor/preferences';
 import { LoginCredentials } from '../../types';
+import authService from '../../services/authService';
 
 const router = useRouter();
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
 
 const form = ref<LoginCredentials>({
   email: 'manager@gmail.com',
-  password: 'password123'
+  password: 'password123',
 });
 
 const loading = ref(false);
@@ -117,42 +123,10 @@ const handleLogin = async () => {
   error.value = '';
 
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email: form.value.email,
-        password: form.value.password,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Erreur de connexion');
-    }
-
-    // Stocker le token et les données utilisateur
-    await Preferences.set({ key: 'auth_token', value: data.token });
-    await Preferences.set({ 
-      key: 'user_data', 
-      value: JSON.stringify({
-        id: data.user.id,
-        username: data.user.username,
-        email: data.user.email,
-      })
-    });
-    
-    // Stocker le rôle
-    const roleName = data.user.role?.name || 'utilisateur';
-    const userRole = (roleName === 'manager' || roleName === 'administrateur') ? 'manager' : 'user';
-    await Preferences.set({ key: 'user_role', value: userRole });
+    // Utiliser le service d'authentification (Firebase Auth)
+    await authService.login(form.value.email, form.value.password);
 
     console.log('Connexion réussie');
-    
-    // Rediriger vers la page d'accueil
     router.replace('/home');
   } catch (err) {
     console.error('Login error:', err);
@@ -189,6 +163,24 @@ const handleLogin = async () => {
 
 .login-form {
   width: 100%;
+}
+
+.demo-credentials {
+  margin-top: 12px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: #0f172a;
+  font-size: 0.9rem;
+}
+
+.demo-credentials code {
+  background: rgba(2,6,23,0.04);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', 'Courier New', monospace;
+  font-size: 0.9rem;
 }
 
 /* Input Styles */

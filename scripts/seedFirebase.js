@@ -26,30 +26,42 @@ const problemes = [
 const users = [
   {
     email: 'test@example.com',
-    role: 'user',
-    nom: 'Dupont',
-    prenom: 'Jean',
-    createdAt: admin.firestore.Timestamp.fromDate(new Date('2026-01-20T10:00:00.000Z'))
+    username: 'Jean Dupont',
+    password: '$2b$10$ZtILaT9EXLGMcj0bah9O4usgz3XG.7MRBhslmBdQDJyb/UPUvSCfO', // password123
+    role: 'utilisateur',
+    createdAt: admin.firestore.Timestamp.fromDate(new Date('2026-01-20T10:00:00.000Z')),
+    updatedAt: admin.firestore.Timestamp.fromDate(new Date('2026-01-20T10:00:00.000Z'))
   },
   {
     email: 'manager@example.com',
+    username: 'System Admin',
+    password: '$2b$10$ZtILaT9EXLGMcj0bah9O4usgz3XG.7MRBhslmBdQDJyb/UPUvSCfO', // password123
     role: 'manager',
-    nom: 'Admin',
-    prenom: 'System',
-    createdAt: admin.firestore.Timestamp.fromDate(new Date('2026-01-15T09:00:00.000Z'))
+    blocked: false,
+    createdAt: admin.firestore.Timestamp.fromDate(new Date('2026-01-15T09:00:00.000Z')),
+    updatedAt: admin.firestore.Timestamp.fromDate(new Date('2026-01-15T09:00:00.000Z'))
   },
   {
     email: 'other@example.com',
-    role: 'user',
-    nom: 'Martin',
-    prenom: 'Marie',
-    createdAt: admin.firestore.Timestamp.fromDate(new Date('2026-01-10T08:00:00.000Z'))
+    username: 'Marie Martin',
+    password: '$2b$10$ZtILaT9EXLGMcj0bah9O4usgz3XG.7MRBhslmBdQDJyb/UPUvSCfO', // password123
+    role: 'utilisateur',
+    blocked: true,
+    createdAt: admin.firestore.Timestamp.fromDate(new Date('2026-01-10T08:00:00.000Z')),
+    updatedAt: admin.firestore.Timestamp.fromDate(new Date('2026-01-10T08:00:00.000Z'))
   }
+
 ];
 
 const entreprises = [
   { id: 1, nom: 'Colas Madgascar ', description: 'Entreprise spécialisée dans les travaux routiers' },
   { id: 2, nom: 'Batimax Construction', description: 'Maintenance et réparation de chaussées' }
+];
+
+const settings = [
+  { code: 'max_login_attempts', value: '3', type: 'number' },
+  { code: 'session_lifetime_hours', value: '24', type: 'number' },
+  { code: 'block_duration_minutes', value: '15', type: 'number' }
 ];
 
 const routes = [
@@ -181,6 +193,37 @@ async function seedDatabase() {
   console.log('🚀 Début de l\'importation des données...');
 
   try {
+    // 0. Créer les comptes Firebase Auth
+    console.log('🔐 Création des comptes Firebase Authentication...');
+    
+    const authUsers = [
+      { email: 'user@gmail.com', password: 'password123', uid: 'CGH1xWXPhjmIh0yYjHgo' },
+      { email: 'manager@gmail.com', password: 'password123', uid: 'BmOY9DZO0taGuAAIp4H6' },
+      { email: 'test@gmail.com', password: 'password123', uid: 'TjFPMyW0GnYykDSTzLUenJnlnT42' },
+      { email: 'admin@gmail.com', password: 'password123', uid: 'gCjn0woNZPYWaYq2b7ozg2w5Kq83' },
+    ];
+
+    for (const authUser of authUsers) {
+      try {
+        // Vérifier si l'utilisateur existe déjà
+        try {
+          await admin.auth().getUser(authUser.uid);
+          console.log(`⏭️  Utilisateur Auth ${authUser.email} existe déjà`);
+        } catch (error) {
+          // L'utilisateur n'existe pas, le créer
+          await admin.auth().createUser({
+            uid: authUser.uid,
+            email: authUser.email,
+            password: authUser.password,
+            emailVerified: true
+          });
+          console.log(`✅ Compte Auth créé: ${authUser.email}`);
+        }
+      } catch (error) {
+        console.error(`❌ Erreur création Auth ${authUser.email}:`, error.message);
+      }
+    }
+
     // 1. Importer les problèmes
     console.log('📝 Importation des types de problèmes...');
     for (const probleme of problemes) {
@@ -194,52 +237,58 @@ async function seedDatabase() {
     await db.collection('users').doc('manager123').set(users[1]);
     await db.collection('users').doc('otherUser').set(users[2]);
     
-    // Ajouter les users PostgreSQL manquants
+    // Ajouter les users PostgreSQL manquants avec password hashé bcrypt (password123)
     await db.collection('users').doc('CGH1xWXPhjmIh0yYjHgo').set({
       email: 'user@gmail.com',
-      nom: 'Dupont',
-      prenom: 'Jean',
-      role: 'user',
+      username: 'Jean Dupont',
+      password: '$2b$10$ZtILaT9EXLGMcj0bah9O4usgz3XG.7MRBhslmBdQDJyb/UPUvSCfO',
+      role: 'utilisateur',
+      blocked: false,
       createdAt: admin.firestore.Timestamp.now(),
       updatedAt: admin.firestore.Timestamp.now()
     });
     await db.collection('users').doc('BmOY9DZO0taGuAAIp4H6').set({
       email: 'manager@gmail.com',
-      nom: 'Rakoto',
-      prenom: 'Marie',
+      username: 'Marie Rakoto',
+      password: '$2b$10$ZtILaT9EXLGMcj0bah9O4usgz3XG.7MRBhslmBdQDJyb/UPUvSCfO',
       role: 'manager',
+      blocked: false,
       createdAt: admin.firestore.Timestamp.now(),
       updatedAt: admin.firestore.Timestamp.now()
     });
     await db.collection('users').doc('TjFPMyW0GnYykDSTzLUenJnlnT42').set({
       email: 'test@gmail.com',
-      nom: 'Test',
-      prenom: 'User',
-      role: 'user',
+      username: 'Test User',
+      password: '$2b$10$ZtILaT9EXLGMcj0bah9O4usgz3XG.7MRBhslmBdQDJyb/UPUvSCfO',
+      role: 'utilisateur',
+      blocked: false,
       createdAt: admin.firestore.Timestamp.now(),
       updatedAt: admin.firestore.Timestamp.now()
     });
     await db.collection('users').doc('gCjn0woNZPYWaYq2b7ozg2w5Kq83').set({
-      email: 'admin@gmail.com',
-      nom: 'Admin',
-      prenom: 'System',
+      email: 'manager@gmail.com',
+      username: 'System Admin',
+      password: '$2b$10$ZtILaT9EXLGMcj0bah9O4usgz3XG.7MRBhslmBdQDJyb/UPUvSCfO',
       role: 'manager',
+      blocked: false,
       createdAt: admin.firestore.Timestamp.now(),
       updatedAt: admin.firestore.Timestamp.now()
     });
     await db.collection('users').doc('m6Ahdvk2NtpzpJU9yzKj').set({
       email: 'admin@example.com',
-      nom: 'Admin',
-      prenom: 'Example',
+      username: 'Admin Example',
+      password: '$2b$10$ZtILaT9EXLGMcj0bah9O4usgz3XG.7MRBhslmBdQDJyb/UPUvSCfO',
+      blocked: false,
       role: 'manager',
       createdAt: admin.firestore.Timestamp.now(),
       updatedAt: admin.firestore.Timestamp.now()
     });
     await db.collection('users').doc('vhCG5s70O3Ohx2DbkYCErge6RGq2').set({
       email: 'bel@gmail.com',
-      nom: 'Bel',
-      prenom: 'User',
-      role: 'user',
+      username: 'Bel User',
+      password: '$2b$10$ZtILaT9EXLGMcj0bah9O4usgz3XG.7MRBhslmBdQDJyb/UPUvSCfO',
+      blocked: false,
+      role: 'utilisateur',
       createdAt: admin.firestore.Timestamp.now(),
       updatedAt: admin.firestore.Timestamp.now()
     });
@@ -251,6 +300,18 @@ async function seedDatabase() {
     for (const entreprise of entreprises) {
       await db.collection('entreprises').doc(entreprise.id.toString()).set(entreprise);
       console.log(`✅ Entreprise ${entreprise.id} importée`);
+    }
+
+    // 3.5 Importer les settings
+    console.log('⚙️ Importation des paramètres...');
+    for (const setting of settings) {
+      await db.collection('settings').doc(setting.code).set({
+        code: setting.code,
+        value: setting.value,
+        type: setting.type,
+        date: admin.firestore.Timestamp.now()
+      });
+      console.log(`✅ Setting ${setting.code} importé`);
     }
 
     // 4. Importer les statuts de point (point_statut)
@@ -354,11 +415,11 @@ async function seedDatabase() {
     console.log(`   • ${problemes.length} types de problèmes`);
     console.log(`   • ${users.length} utilisateurs`);
     console.log(`   • ${entreprises.length} entreprises`);
+    console.log(`   • ${settings.length} paramètres`);
     console.log(`   • ${routes.length} signalements (points)`);
     console.log(`   • 4 statuts de points`);
-    console.log(`   • 3 paramètres de sécurité`);
     console.log('');
-    console.log('✅ Structure Firebase conforme au schéma SQL (points, problemes, entreprises, point_statut)');
+    console.log('✅ Structure Firebase conforme au schéma SQL (points, problemes, entreprises, point_statut, settings)');
 
   } catch (error) {
     console.error('❌ Erreur lors de l\'importation :', error);

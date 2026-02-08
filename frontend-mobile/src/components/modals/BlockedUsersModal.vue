@@ -65,16 +65,16 @@
               <!-- Partie Centrale : Métadonnées -->
               <div class="card-stats">
                 <div class="stat-item">
-                  <span class="stat-label">Tentatives</span>
+                  <span class="stat-label">Statut</span>
                   <span class="stat-value text-danger">
-                    {{ user.LoginAttempt?.attempts || 0 }} échecs
+                    Bloqué
                   </span>
                 </div>
                 <div class="stat-divider"></div>
                 <div class="stat-item">
-                  <span class="stat-label">Déblocage auto</span>
+                  <span class="stat-label">Compte créé</span>
                   <span class="stat-value">
-                    {{ formatDate(user.LoginAttempt?.blocked_until) }}
+                    {{ formatDate(user.createdAt) }}
                   </span>
                 </div>
               </div>
@@ -121,19 +121,15 @@ import {
   shieldCheckmark,
   alertCircle,
 } from 'ionicons/icons';
-import { Preferences } from '@capacitor/preferences';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+import userService from '../../services/userService';
 
 interface BlockedUser {
-  id: number;
+  id: string;
   email: string;
   username: string;
-  isBlocked: boolean;
-  LoginAttempt?: {
-    attempts: number;
-    blocked_until: string | null;
-  };
+  blocked?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 interface Props { isOpen: boolean }
@@ -148,32 +144,11 @@ const loadBlocked = async () => {
   loading.value = true;
   error.value = '';
   try {
-    const { value: token } = await Preferences.get({ key: 'auth_token' });
-    if (!token) throw new Error('Non authentifié');
-
-    console.log('🔑 Token:', token.substring(0, 20) + '...');
-    console.log('📡 Calling:', `${API_BASE_URL}/users/blocked`);
-
-    const response = await fetch(`${API_BASE_URL}/users/blocked`, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-
-    console.log('📊 Response status:', response.status, response.statusText);
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Erreur inconnue' }));
-      console.error('❌ Error response:', errorData);
-      throw new Error(errorData.message || `Erreur HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-    console.log('✅ Data received:', data);
-    blocked.value = data;
+    const users = await userService.getBlockedUsers();
+    blocked.value = users;
+    console.log('✅ Utilisateurs bloqués:', users);
   } catch (err) {
-    console.error('💥 Exception:', err);
+    console.error('💥 Erreur chargement utilisateurs bloqués:', err);
     error.value = err instanceof Error ? err.message : 'Erreur lors du chargement des données.';
   } finally {
     loading.value = false;
@@ -198,34 +173,16 @@ const formatDate = (d: Date | string | null | undefined) => {
 
 const unblock = async (user: BlockedUser) => {
   try {
-    const { value: token } = await Preferences.get({ key: 'auth_token' });
-    if (!token) throw new Error('Non authentifié');
+    // Débloquer l'utilisateur dans Firestore
+    await userService.unblockUser(user.id);
 
-    // Débloquer l'utilisateur
-    const response = await fetch(`${API_BASE_URL}/users/${user.id}/unblock`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-    });
+    // Réinitialiser les tentatives de connexion
+    await userService.resetLoginAttempts(user.id);
 
-    if (!response.ok) throw new Error('Erreur lors du déblocage');
-
-    // Réinitialiser les tentatives si nécessaire
-    if (user.LoginAttempt) {
-      await fetch(`${API_BASE_URL}/auth/reset-attempts/${user.id}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-    }
-
+    console.log(`✅ Utilisateur ${user.email} débloqué`);
     await loadBlocked(); // Rafraîchir la liste
   } catch (err) {
-    console.error(err);
+    console.error('❌ Erreur déblocage:', err);
     error.value = 'Échec du déblocage.';
   }
 };
