@@ -1,21 +1,22 @@
 import { Preferences } from '@capacitor/preferences';
+import { db } from '../config/firebase';
+import { doc, getDoc, setDoc, updateDoc, Timestamp, collection } from 'firebase/firestore';
 
 const TOKEN_KEY = 'auth_token';
 const USER_KEY = 'user_data';
 const ROLE_KEY = 'user_role';
 
-interface BackendAuthResponse {
-  message: string;
-  token: string;
-  user: {
-    id: number;
-    username: string;
-    email: string;
-    role?: {
-      name: string;
-      level: number;
-    };
-  };
+// Valeurs par défaut si Firestore n'est pas accessible
+const DEFAULT_MAX_LOGIN_ATTEMPTS = 3;
+const DEFAULT_BLOCK_DURATION_MINUTES = 15;
+
+interface FirebaseAuthResponse {
+  idToken: string;
+  email: string;
+  refreshToken: string;
+  expiresIn: string;
+  localId: string;
+  registered?: boolean;
 }
 
 interface BackendError {
@@ -23,52 +24,87 @@ interface BackendError {
 }
 
 class AuthService {
-  private baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
-  private signInUrl = `${this.baseUrl}/auth/login`;
-  private signUpUrl = `${this.baseUrl}/auth/register`;
-  private meUrl = `${this.baseUrl}/auth/me`;
+  private firebaseApiKey = import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyBLueXEEBaC4KRaPYBQ5RmcGCL5sxzwa6E';
+  private signInUrl = import.meta.env.SIGN_IN_FIREBASE_URL || 
+    `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${this.firebaseApiKey}`;
+  private signUpUrl = import.meta.env.SIGN_UP_FIREBASE_URL || 
+    `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${this.firebaseApiKey}`;
 
-  async login(email: string, password: string): Promise<BackendAuthResponse> {
+  async login(email: string, password: string): Promise<any> {
     try {
+      // Vérifier si l'utilisateur est bloqué
+      const blockInfo = await this.checkLoginAttempts(email);
+      if (blockInfo.isBlocked) {
+        const minutesLeft = Math.ceil((blockInfo.blockedUntil!.getTime() - Date.now()) / 60000);
+        throw new Error(`Compte bloqué. Réessayez dans ${minutesLeft} minute(s).`);
+      }
+
       const response = await fetch(this.signInUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email,
+          password,
+          returnSecureToken: true
+        }),
       });
 
-      const data = await response.json();
+      const data = await response.json() as FirebaseAuthResponse;
 
       if (!response.ok) {
-        const error = data as BackendError;
-        throw new Error(error.message || 'Erreur de connexion');
+        // Enregistrer la tentative échouée
+        await this.recordFailedAttempt(email);
+        const error = data as any;
+        throw new Error(error.error?.message || 'Erreur de connexion');
       }
 
-      // Stocker le token et les données utilisateur
-      await this.setToken(data.token);
+      // Connexion réussie - réinitialiser les tentatives
+      await this.resetLoginAttempts(email);
+
+      // Récupérer les infos utilisateur depuis Firestore
+      const { collection, query, where, getDocs } = await import('firebase/firestore');
+      
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('email', '==', email));
+      const querySnapshot = await getDocs(q);
+      
+      let userData: any = { email, role: 'utilisateur' };
+      if (!querySnapshot.empty) {
+        const userDoc = querySnapshot.docs[0];
+        userData = { id: userDoc.id, ...userDoc.data() };
+      }
+
+      // Stocker le token Firebase et les données utilisateur
+      await this.setToken(data.idToken);
       await this.setUserData({
-        id: data.user.id,
-        username: data.user.username,
-        email: data.user.email,
+        id: userData.id || data.localId,
+        username: userData.username || email.split('@')[0],
+        email: data.email,
+        localId: data.localId
       });
       
       // Stocker le rôle
-      const roleName = data.user.role?.name || 'utilisateur';
-      await this.setUserRole(roleName === 'manager' || roleName === 'administrateur' ? 'manager' : 'user');
+      const roleName = userData.role || 'utilisateur';
+      await this.setUserRole(roleName === 'manager' ? 'manager' : 'utilisateur');
 
       // Start session expiration timer
       this.startSessionTimer();
 
-      return data;
+      return { token: data.idToken, user: userData };
     } catch (error) {
       console.error('Login error:', error);
       throw error;
     }
   }
 
-  async register(email: string, password: string, username?: string): Promise<BackendAuthResponse> {
+  async register(email: string, password: string, username?: string): Promise<any> {
     try {
+      const bcrypt = await import('bcryptjs');
+      const hashedPassword = await bcrypt.hash(password, 10);
+      
+      // ✅ Register via Firebase Auth
       const response = await fetch(this.signUpUrl, {
         method: 'POST',
         headers: {
@@ -77,30 +113,49 @@ class AuthService {
         body: JSON.stringify({
           email,
           password,
-          username: username || email.split('@')[0], // Utiliser l'email comme username si non fourni
+          returnSecureToken: true
         }),
       });
 
-      const data = await response.json();
+      const data = await response.json() as FirebaseAuthResponse;
 
       if (!response.ok) {
-        const error = data as BackendError;
-        throw new Error(error.message || 'Erreur lors de l\'inscription');
+        const error = data as any;
+        throw new Error(error.error?.message || 'Erreur lors de l\'inscription');
       }
 
-      // Stocker le token et les données utilisateur
-      await this.setToken(data.token);
+      const finalUsername = username || email.split('@')[0];
+
+      await this.setToken(data.idToken);
       await this.setUserData({
-        id: data.user.id,
-        username: data.user.username,
-        email: data.user.email,
+        id: data.localId,
+        username: finalUsername,
+        email: data.email,
+        localId: data.localId
       });
 
-      // Stocker le rôle
-      const roleName = data.user.role?.name || 'utilisateur';
-      await this.setUserRole(roleName === 'manager' || roleName === 'administrateur' ? 'manager' : 'user');
+      await this.setUserRole('utilisateur');  
 
-      return data;
+      try {
+        const { db } = await import('../config/firebase');
+        const { doc, setDoc, Timestamp } = await import('firebase/firestore');
+        
+        await setDoc(doc(db, 'users', data.localId), {
+          email: data.email,
+          username: finalUsername,
+          password: hashedPassword,
+          role: 'utilisateur',
+          blocked: false,
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now()
+        });
+        
+        console.log('✅ Document utilisateur créé dans Firestore avec password hashé');
+      } catch (fbError) {
+        console.warn('⚠️ Erreur création document Firestore (non bloquant):', fbError);
+      }
+
+      return { token: data.idToken, user: { id: data.localId, email: data.email, username: finalUsername } };
     } catch (error) {
       console.error('Register error:', error);
       throw error;
@@ -130,7 +185,6 @@ class AuthService {
     // verify token expiry
     const valid = this.isTokenValid(token);
     if (!valid) {
-      // cleanup expired token
       await this.logout();
       return false;
     }
@@ -144,9 +198,9 @@ class AuthService {
     return value ? JSON.parse(value) : null;
   }
 
-  async getUserRole(): Promise<'user' | 'manager' | null> {
+  async getUserRole(): Promise<'utilisateur' | 'manager' | null> {
     const { value } = await Preferences.get({ key: ROLE_KEY });
-    return value as 'user' | 'manager' | null;
+    return value as 'utilisateur' | 'manager' | null;
   }
 
   async isManager(): Promise<boolean> {
@@ -162,39 +216,6 @@ class AuthService {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`,
     };
-  }
-
-  // Récupérer les informations de l'utilisateur depuis le backend
-  async getCurrentUser(): Promise<any> {
-    try {
-      const headers = await this.getAuthHeader();
-
-      const response = await fetch(this.meUrl, {
-        headers,
-      });
-
-      if (!response.ok) {
-        // Token invalide, déconnexion
-        await this.logout();
-        return null;
-      }
-
-      const data = await response.json();
-      return data.user;
-    } catch (error) {
-      console.error('Error fetching current user:', error);
-      return null;
-    }
-  }
-
-  // Vérifier la connectivité au backend
-  async checkConnectivity(): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.baseUrl}/health`, { method: 'GET' });
-      return response.ok;
-    } catch (error) {
-      return false;
-    }
   }
 
   private async setToken(token: string): Promise<void> {
@@ -232,7 +253,6 @@ class AuthService {
     if (this.sessionTimer) clearTimeout(this.sessionTimer);
     this.sessionTimer = setTimeout(async () => {
       await this.logout();
-      // optional: notify user via an event or toast; for now we console
       console.log('Session expirée, déconnexion automatique');
     }, msLeft);
   }
@@ -241,8 +261,110 @@ class AuthService {
     await Preferences.set({ key: USER_KEY, value: JSON.stringify(userData) });
   }
 
-  private async setUserRole(role: 'user' | 'manager'): Promise<void> {
+  private async setUserRole(role: 'utilisateur' | 'manager'): Promise<void> {
     await Preferences.set({ key: ROLE_KEY, value: role });
+  }
+
+  // Récupérer un paramètre depuis Firestore
+  private async getSetting(code: string, defaultValue: any): Promise<any> {
+    try {
+      const settingRef = doc(db, 'settings', code);
+      const settingSnap = await getDoc(settingRef);
+      
+      if (settingSnap.exists()) {
+        const data = settingSnap.data();
+        const value = data.value;
+        
+        // Convertir selon le type
+        if (data.type === 'number') {
+          return parseInt(value, 10) || defaultValue;
+        }
+        return value;
+      }
+      
+      return defaultValue;
+    } catch (error) {
+      console.warn(`Erreur récupération setting ${code}:`, error);
+      return defaultValue;
+    }
+  }
+
+  // Vérifier les tentatives de connexion et le blocage
+  private async checkLoginAttempts(email: string): Promise<{ isBlocked: boolean; blockedUntil?: Date }> {
+    try {
+      const attemptRef = doc(db, 'login_attempts', email);
+      const attemptSnap = await getDoc(attemptRef);
+
+      if (!attemptSnap.exists()) {
+        return { isBlocked: false };
+      }
+
+      const data = attemptSnap.data();
+      const blockedUntil = data.blocked_until?.toDate();
+
+      if (blockedUntil && blockedUntil > new Date()) {
+        return { isBlocked: true, blockedUntil };
+      }
+
+      return { isBlocked: false };
+    } catch (error) {
+      console.error('Erreur vérification tentatives:', error);
+      return { isBlocked: false };
+    }
+  }
+
+  // Enregistrer une tentative de connexion échouée
+  private async recordFailedAttempt(email: string): Promise<void> {
+    try {
+      const attemptRef = doc(db, 'login_attempts', email);
+      const attemptSnap = await getDoc(attemptRef);
+
+      // Récupérer les paramètres depuis Firestore
+      const maxAttempts = await this.getSetting('max_login_attempts', DEFAULT_MAX_LOGIN_ATTEMPTS);
+      const blockDuration = await this.getSetting('block_duration_minutes', DEFAULT_BLOCK_DURATION_MINUTES);
+
+      const now = Timestamp.now();
+      let attempts = 1;
+      let blockedUntil = null;
+
+      if (attemptSnap.exists()) {
+        const data = attemptSnap.data();
+        attempts = (data.attempts || 0) + 1;
+      }
+
+      // Bloquer si >= maxAttempts
+      if (attempts >= maxAttempts) {
+        const blockDate = new Date();
+        blockDate.setMinutes(blockDate.getMinutes() + blockDuration);
+        blockedUntil = Timestamp.fromDate(blockDate);
+      }
+
+      await setDoc(attemptRef, {
+        email,
+        attempts,
+        last_attempt: now,
+        blocked_until: blockedUntil,
+        updatedAt: now,
+      }, { merge: true });
+    } catch (error) {
+      console.error('Erreur enregistrement tentative:', error);
+    }
+  }
+
+  // Réinitialiser les tentatives après connexion réussie
+  private async resetLoginAttempts(email: string): Promise<void> {
+    try {
+      const attemptRef = doc(db, 'login_attempts', email);
+      await setDoc(attemptRef, {
+        email,
+        attempts: 0,
+        last_attempt: Timestamp.now(),
+        blocked_until: null,
+        updatedAt: Timestamp.now(),
+      }, { merge: true });
+    } catch (error) {
+      console.error('Erreur réinitialisation tentatives:', error);
+    }
   }
 }
 

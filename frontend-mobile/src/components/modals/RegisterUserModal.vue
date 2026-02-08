@@ -23,6 +23,24 @@
       <form @submit.prevent="handleRegister" class="register-form">
         <div class="input-wrapper">
           <label class="input-label">
+            <ion-icon :icon="personAdd"></ion-icon>
+            <span>Nom d'utilisateur</span>
+          </label>
+          <div class="input-container" :class="{ focused: usernameFocused }">
+            <ion-input
+              v-model="form.username"
+              type="text"
+              required
+              :disabled="loading"
+              placeholder="nom_utilisateur"
+              @ionFocus="usernameFocused = true"
+              @ionBlur="usernameFocused = false"
+            ></ion-input>
+          </div>
+        </div>
+
+        <div class="input-wrapper">
+          <label class="input-label">
             <ion-icon :icon="mail"></ion-icon>
             <span>Adresse email</span>
           </label>
@@ -140,6 +158,7 @@ import {
   personAdd
 } from 'ionicons/icons';
 import authService from '../../services/authService';
+import userService from '../../services/userService';
 
 interface Props {
   isOpen: boolean;
@@ -149,6 +168,7 @@ defineProps<Props>();
 const emit = defineEmits(['close']);
 
 const form = ref({
+  username: '',
   email: '',
   password: '',
 });
@@ -158,11 +178,12 @@ const error = ref('');
 const success = ref('');
 const showPassword = ref(false);
 const isOnline = ref(true);
+const usernameFocused = ref(false);
 const emailFocused = ref(false);
 const passwordFocused = ref(false);
 
 const isFormValid = computed(() => {
-  return form.value.email.trim() !== '' && form.value.password.trim().length >= 6;
+  return form.value.username.trim() !== '' && form.value.email.trim() !== '' && form.value.password.trim().length >= 6;
 });
 
 const passwordStrength = computed(() => {
@@ -203,13 +224,12 @@ const handleRegister = async () => {
   success.value = '';
 
   try {
-    isOnline.value = await authService.checkConnectivity();
-
+    isOnline.value = await userService.checkConnectivity();
     if (!isOnline.value) {
       throw new Error('Connexion internet requise pour créer un compte. Veuillez vérifier votre connexion et réessayer.');
     }
 
-    await authService.register(form.value.email, form.value.password);
+    await authService.register(form.value.email, form.value.password, form.value.username);
 
     success.value = 'Compte créé avec succès';
     setTimeout(() => {
@@ -224,10 +244,12 @@ const handleRegister = async () => {
 };
 
 const closeModal = () => {
+  form.value.username = '';
   form.value.email = '';
   form.value.password = '';
   error.value = '';
   success.value = '';
+  usernameFocused.value = false;
   emailFocused.value = false;
   passwordFocused.value = false;
   emit('close');

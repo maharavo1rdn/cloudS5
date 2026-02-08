@@ -5,6 +5,7 @@ import Probleme from '../models/Probleme.js';
 import Entreprise from '../models/Entreprise.js';
 import PointStatut from '../models/PointStatut.js';
 import User from '../models/User.js';
+import Setting from '../models/Setting.js';
 import firebaseService from '../services/firebaseService.js';
 import { Op } from 'sequelize';
 import sequelize from '../config/database.js';
@@ -598,30 +599,70 @@ router.post('/users/pull', async (req, res) => {
           const localUpdatedAt = existingUser.updated_at || existingUser.created_at;
           
           if (fbUpdatedAt > localUpdatedAt) {
-            await existingUser.update({
+            const updateData = {
               firebase_uid: userDoc.id,
-              nom: fbUser.nom || existingUser.nom,
-              prenom: fbUser.prenom || existingUser.prenom,
+              username: fbUser.username || existingUser.username,
+              isBlocked: !!fbUser.blocked,
               last_synced_at: new Date()
-            });
+            };
+            
+            // Si Firebase contient un password hashé, on le stocke SANS le re-hasher
+            if (fbUser.password) {
+              updateData.password = fbUser.password;
+            }
+            
+            await existingUser.update(updateData);
             results.updated++;
           }
         } else {
-          // Créer nouvel utilisateur (username/password requis mais seront NULL - à gérer dans model)
-          // Note: Ces users Firebase ne pourront pas se connecter via web (ils utilisent Firebase Auth mobile)
-          await User.create({
+          let desiredUsername = fbUser.username || `user_${userDoc.id.substring(0, 10)}`;
+
+          const usernameOwner = await User.findOne({ where: { username: desiredUsername } });
+          if (usernameOwner) {
+            if (usernameOwner.email === fbUser.email) {
+              await usernameOwner.update({
+                firebase_uid: userDoc.id,
+                password: fbUser.password || usernameOwner.password,
+                last_synced_at: new Date()
+              });
+              results.updated++;
+              continue;
+            }
+
+            desiredUsername = `${desiredUsername}_${userDoc.id.substring(0,6)}`;
+          }
+
+          const newUserData = {
             firebase_uid: userDoc.id,
             email: fbUser.email,
-            username: `firebase_${userDoc.id.substring(0, 10)}`, // Username généré pour respecter contrainte NOT NULL
-            password: 'FIREBASE_AUTH_USER', // Placeholder - ne sera jamais utilisé pour login web
-            nom: fbUser.nom || '',
-            prenom: fbUser.prenom || '',
-            level: fbUser.role === 'manager' ? 5 : 1,
-            created_at: fbUser.createdAt?.toDate?.() || new Date(),
-            updated_at: fbUser.updatedAt?.toDate?.() || new Date(),
+            username: desiredUsername,
+            password: fbUser.password || 'FIREBASE_AUTH_PLACEHOLDER',
+            role_id: fbUser.role == 'manager' ? 
+              (await sequelize.models.Role.findOne({ where: { name: 'manager' } }))?.id :
+              (await sequelize.models.Role.findOne({ where: { name: 'utilisateur' } }))?.id,
+            isBlocked: !!fbUser.blocked,
             last_synced_at: new Date()
-          });
-          results.created++;
+          };
+
+          try {
+            await User.create(newUserData);
+            results.created++;
+          } catch (createErr) {
+            console.warn(`Tentative création utilisateur a échoué pour ${newUserData.email}: ${createErr.message}`);
+            if (createErr && createErr.original && createErr.original.constraint && createErr.original.constraint.includes('users_username')) {
+              newUserData.username = `${newUserData.username}_${Math.floor(Math.random() * 9000) + 1000}`;
+              try {
+                await User.create(newUserData);
+                results.created++;
+              } catch (retryErr) {
+                console.error(`Réessai création utilisateur échoué pour ${newUserData.email}:`, retryErr.message || retryErr);
+                results.errors.push({ firebase_id: userDoc.id, error: retryErr.message || String(retryErr) });
+              }
+            } else {
+              console.error(`Erreur création utilisateur ${userDoc.id}:`, createErr.message || createErr);
+              results.errors.push({ firebase_id: userDoc.id, error: createErr.message || String(createErr) });
+            }
+          }
         }
       } catch (error) {
         console.error(`Erreur sync user ${userDoc.id}:`, error);
@@ -679,9 +720,11 @@ router.post('/users/push', async (req, res) => {
       try {
         const userData = {
           email: user.email,
-          nom: user.nom || '',
-          prenom: user.prenom || '',
-          role: user.level >= 5 ? 'manager' : 'user',
+          username: user.username,
+          // Envoyer le password déjà hashé depuis la base locale
+          password: user.password,
+          role: (await user.getRole())?.name === 'manager' ? 'manager' : 'user',
+          blocked: !!user.isBlocked,
           createdAt: admin.firestore.Timestamp.fromDate(user.createdAt || new Date()),
           updatedAt: admin.firestore.Timestamp.fromDate(user.updatedAt || new Date())
         };
@@ -939,6 +982,121 @@ router.post('/images-histo', async (req, res) => {
     console.error('Erreur sync images/historique:', error);
     res.status(500).json({ 
       error: 'Erreur lors de la synchronisation images/historique',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/sync/settings/pull:
+ *   post:
+ *     summary: Récupérer les paramètres depuis Firebase
+ *     tags: [Synchronisation]
+ *     responses:
+ *       200:
+ *         description: Paramètres synchronisés avec succès
+ */
+router.post('/settings/pull', async (req, res) => {
+  try {
+    console.log('🔄 Début pull settings depuis Firebase');
+    
+    const settingsSnapshot = await firebaseService.db.collection('settings').get();
+    
+    const results = {
+      received: settingsSnapshot.size,
+      created: 0,
+      updated: 0,
+      errors: []
+    };
+
+    for (const doc of settingsSnapshot.docs) {
+      try {
+        const data = doc.data();
+        const code = data.code || doc.id;
+
+        const [existingSetting] = await Setting.findOrCreate({
+          where: { code },
+          defaults: {
+            code,
+            value: data.value || '',
+            type: data.type || 'string',
+            date: data.date?.toDate?.() || new Date()
+          }
+        });
+
+        if (existingSetting) {
+          await existingSetting.update({
+            value: data.value || existingSetting.value,
+            type: data.type || existingSetting.type,
+            date: data.date?.toDate?.() || existingSetting.date
+          });
+          results.updated++;
+        } else {
+          results.created++;
+        }
+      } catch (error) {
+        console.error(`Erreur traitement setting ${doc.id}:`, error);
+        results.errors.push({ code: doc.id, error: error.message });
+      }
+    }
+
+    console.log(`✅ Pull settings terminé: ${results.created} créés, ${results.updated} mis à jour`);
+    res.json(results);
+
+  } catch (error) {
+    console.error('Erreur pull settings Firebase:', error);
+    res.status(500).json({ 
+      error: 'Erreur lors de la récupération des paramètres depuis Firebase',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/sync/settings/push:
+ *   post:
+ *     summary: Envoyer les paramètres locaux vers Firebase
+ *     tags: [Synchronisation]
+ *     responses:
+ *       200:
+ *         description: Paramètres envoyés avec succès
+ */
+router.post('/settings/push', async (req, res) => {
+  try {
+    console.log('🔄 Début push settings vers Firebase');
+    
+    const settings = await Setting.findAll();
+    
+    const results = {
+      total: settings.length,
+      synced: 0,
+      errors: []
+    };
+
+    for (const setting of settings) {
+      try {
+        await firebaseService.db.collection('settings').doc(setting.code).set({
+          code: setting.code,
+          value: setting.value,
+          type: setting.type,
+          date: admin.firestore.Timestamp.fromDate(setting.date || new Date())
+        });
+        results.synced++;
+      } catch (error) {
+        console.error(`Erreur sync setting ${setting.code}:`, error);
+        results.errors.push({ code: setting.code, error: error.message });
+      }
+    }
+
+    console.log(`✅ Push settings terminé: ${results.synced} synchronisés`);
+    res.json(results);
+
+  } catch (error) {
+    console.error('Erreur push settings Firebase:', error);
+    res.status(500).json({ 
+      error: 'Erreur lors de l\'envoi des paramètres vers Firebase',
       details: error.message 
     });
   }
