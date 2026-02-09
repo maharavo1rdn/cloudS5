@@ -1,5 +1,5 @@
 {
-  "name": "ionic-app-base",
+  "name": "route-tracker",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -21,7 +21,9 @@
     "@capacitor/ios": "7.4.4",
     "@capacitor/keyboard": "7.0.3",
     "@capacitor/local-notifications": "^7.0.4",
+    "@capacitor/network": "^7.0.3",
     "@capacitor/preferences": "^7.0.2",
+    "@capacitor/push-notifications": "^7.0.4",
     "@capacitor/status-bar": "7.0.3",
     "@ionic/pwa-elements": "^3.3.0",
     "@ionic/vue": "^8.7.16",
