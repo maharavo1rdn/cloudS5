@@ -1,5 +1,6 @@
 import { Preferences } from '@capacitor/preferences';
 import { PushNotifications, Token, PushNotificationSchema, ActionPerformed } from '@capacitor/push-notifications';
+import { LocalNotifications } from '@capacitor/local-notifications';
 import { Capacitor } from '@capacitor/core';
 import { 
   collection, 
@@ -69,6 +70,7 @@ class NotificationService {
     // Configurer les listeners natifs si sur mobile
     if (Capacitor.isNativePlatform()) {
       this.setupNativeListeners();
+      await this.createNotificationChannel();
     }
     
     // Charger la dernière date de consultation
@@ -113,6 +115,27 @@ class NotificationService {
   }
 
   /**
+   * Crée le canal de notification Android (requis Android 8+)
+   */
+  private async createNotificationChannel() {
+    try {
+      await LocalNotifications.createChannel({
+        id: 'route_tracker_channel',
+        name: 'Route Tracker',
+        description: 'Notifications de changement de statut des signalements',
+        importance: 5, // Max importance = heads-up notification
+        visibility: 1, // Public
+        sound: 'default',
+        vibration: true,
+        lights: true
+      });
+      console.log('✅ Canal de notification Android créé');
+    } catch (error) {
+      console.error('❌ Erreur création canal notification:', error);
+    }
+  }
+
+  /**
    * Demande la permission pour les notifications système
    * Doit être appelée depuis un gestionnaire d'événement utilisateur
    */
@@ -122,14 +145,18 @@ class NotificationService {
       const isNative = Capacitor.isNativePlatform();
       
       if (isNative) {
-        // Utiliser PushNotifications pour Android/iOS
+        // Demander la permission pour les notifications locales (affichage système)
+        const localPerm = await LocalNotifications.requestPermissions();
+        console.log('📱 Permission notifications locales:', localPerm.display);
+        
+        // Demander aussi la permission pour les push (FCM)
         const permission = await PushNotifications.requestPermissions();
-        this.isPermissionGranted = permission.receive === 'granted';
+        this.isPermissionGranted = permission.receive === 'granted' || localPerm.display === 'granted';
         
         if (this.isPermissionGranted) {
-          // Enregistrer pour recevoir des notifications
+          // Enregistrer pour recevoir des notifications push
           await PushNotifications.register();
-          console.log('✅ Permission notifications push accordée (natif)');
+          console.log('✅ Permission notifications accordée (natif)');
         } else {
           console.warn('⚠️ Permission notifications refusée');
         }
@@ -512,27 +539,60 @@ class NotificationService {
   }
 
   /**
-   * Envoie une notification système (push notification)
+   * Envoie une notification système native (vraie notification Android/iOS)
    */
   private async sendSystemNotification(notification: Notification) {
-    if (!this.isPermissionGranted) {
-      console.warn('⚠️ Pas de permission pour notifications système');
-      return;
-    }
-
     try {
       const isNative = Capacitor.isNativePlatform();
       
       if (isNative) {
-        // Sur Android/iOS, utiliser PushNotifications
-        // Note: PushNotifications ne peut pas envoyer de notifications locales directement
-        // Il faudrait utiliser Firebase Cloud Messaging pour envoyer depuis le serveur
-        // Pour l'instant, on utilise les notifications web standard sur natif
-        console.log('📱 Notification reçue (natif):', notification.title);
+        // Vérifier les permissions en temps réel (pas le cache)
+        const permStatus = await LocalNotifications.checkPermissions();
+        console.log('🔔 Permission notifications réelle:', permStatus.display);
+        
+        if (permStatus.display !== 'granted') {
+          // Tenter de demander la permission automatiquement
+          const reqResult = await LocalNotifications.requestPermissions();
+          if (reqResult.display !== 'granted') {
+            console.warn('⚠️ Pas de permission pour notifications système');
+            return;
+          }
+          // Mettre à jour le cache
+          this.isPermissionGranted = true;
+          await Preferences.set({
+            key: 'notification_permission_granted',
+            value: 'true'
+          });
+        }
+
+        // Générer un ID unique numérique pour la notification
+        const notifId = Math.floor(Math.random() * 2147483647);
+        
+        console.log('📱 Scheduling notification native ID:', notifId, 'title:', notification.title);
+        
+        await LocalNotifications.schedule({
+          notifications: [
+            {
+              id: notifId,
+              title: notification.title,
+              body: notification.body,
+              channelId: 'route_tracker_channel',
+              smallIcon: 'ic_notification',
+              largeIcon: 'ic_launcher',
+              sound: 'default',
+              extra: {
+                routeId: notification.routeId,
+                type: notification.type,
+                notificationId: notification.id
+              }
+            }
+          ]
+        });
+        console.log('✅ Notification système native envoyée:', notification.title);
       } else {
         // Sur le web, utiliser l'API Notification du navigateur
         if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification(notification.title, {
+          new window.Notification(notification.title, {
             body: notification.body,
             icon: '/assets/icon/favicon.png',
             tag: notification.id,
@@ -555,8 +615,19 @@ class NotificationService {
    */
   async hasPermission(): Promise<boolean> {
     try {
-      const { value } = await Preferences.get({ key: 'notification_permission_granted' });
-      this.isPermissionGranted = value === 'true';
+      // Sur natif, vérifier les vraies permissions système
+      if (Capacitor.isNativePlatform()) {
+        const permStatus = await LocalNotifications.checkPermissions();
+        this.isPermissionGranted = permStatus.display === 'granted';
+        // Mettre à jour le cache
+        await Preferences.set({
+          key: 'notification_permission_granted',
+          value: this.isPermissionGranted.toString()
+        });
+      } else {
+        const { value } = await Preferences.get({ key: 'notification_permission_granted' });
+        this.isPermissionGranted = value === 'true';
+      }
       return this.isPermissionGranted;
     } catch (error) {
       return false;
