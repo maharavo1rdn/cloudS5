@@ -193,7 +193,7 @@ const handleLogin = async () => {
 }
 
 /* Forcer la couleur du curseur dans l'input natif à l'intérieur de ion-input */
-::v-deep .custom-input input {
+:deep(.custom-input input) {
   caret-color: #000000;
   color: #000000;
 }
@@ -204,7 +204,7 @@ const handleLogin = async () => {
 }
 
 /* Force le caret (curseur) visible à l'intérieur du shadow DOM d'IonInput */
-::v-deep .custom-input input {
+:deep(.custom-input input) {
   caret-color: #000000 !important;
 }
 .input-label {
