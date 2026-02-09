@@ -77,11 +77,11 @@
               <div class="status-details">
                 <span class="status-name">Nouveaux signalements</span>
                 <div class="mini-bar-bg">
-                  <div class="mini-bar-fill warning" :style="{ width: getPercentage(stats.byStatus.NOUVEAU) + '%' }">
+                  <div class="mini-bar-fill warning" :style="{ width: getPercentage(stats.byStatus.A_FAIRE) + '%' }">
                   </div>
                 </div>
               </div>
-              <div class="status-count">{{ stats.byStatus.NOUVEAU || 0 }}</div>
+              <div class="status-count">{{ stats.byStatus.A_FAIRE || 0 }}</div>
             </div>
 
             <div class="divider"></div>
@@ -203,7 +203,7 @@ const stats = computed<Statistics>(() => {
 
   const byStatus: Record<string, number> = {};
   routes.forEach(r => {
-    const status = r.point_statut || 'NOUVEAU';
+    const status = r.point_statut || 'A_FAIRE';
     byStatus[status] = (byStatus[status] || 0) + 1;
   });
 
