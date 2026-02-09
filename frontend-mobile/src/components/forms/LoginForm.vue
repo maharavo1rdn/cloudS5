@@ -31,21 +31,23 @@
           <ion-icon :icon="lockClosed" class="label-icon"></ion-icon>
           Mot de passe
         </label>
-        <div class="input-container">
+        <div class="input-container password-container">
           <ion-input
+            ref="passwordInput"
             v-model="form.password"
             :type="showPassword ? 'text' : 'password'"
             required
             :disabled="loading"
             placeholder="••••••••"
-            class="custom-input"
+            class="custom-input password-input"
             autocomplete="current-password"
           ></ion-input>
           <button
             type="button"
-            @click="togglePassword"
+            @click.stop="togglePassword"
             class="password-toggle"
             :disabled="loading"
+            tabindex="-1"
           >
             <ion-icon :icon="showPassword ? eyeOff : eye"></ion-icon>
           </button>
@@ -89,7 +91,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { IonInput, IonButton, IonSpinner, IonIcon } from '@ionic/vue';
 import { mail, lockClosed, eye, eyeOff, alertCircle } from 'ionicons/icons';
@@ -107,6 +109,7 @@ const loading = ref(false);
 const error = ref('');
 const showPassword = ref(false);
 const rememberMe = ref(false);
+const passwordInput = ref<any>(null);
 
 const isFormValid = computed(() => {
   return form.value.email.trim() !== '' && form.value.password.trim() !== '';
@@ -114,6 +117,7 @@ const isFormValid = computed(() => {
 
 const togglePassword = () => {
   showPassword.value = !showPassword.value;
+  console.log('Toggle password:', showPassword.value);
 };
 
 const handleLogin = async () => {
@@ -188,6 +192,21 @@ const handleLogin = async () => {
   margin-bottom: 24px;
 }
 
+/* Forcer la couleur du curseur dans l'input natif à l'intérieur de ion-input */
+::v-deep .custom-input input {
+  caret-color: #000000;
+  color: #000000;
+}
+
+/* Empêcher le bouton toggle de voler le focus quand on clique dessus */
+.password-toggle:focus {
+  outline: none;
+}
+
+/* Force le caret (curseur) visible à l'intérieur du shadow DOM d'IonInput */
+::v-deep .custom-input input {
+  caret-color: #000000 !important;
+}
 .input-label {
   display: flex;
   align-items: center;
@@ -209,7 +228,8 @@ const handleLogin = async () => {
   border: 2px solid #e0e0e0;
   border-radius: 12px;
   transition: all 0.3s ease;
-  overflow: hidden;
+  display: flex;
+  align-items: center;
 }
 
 .input-container:focus-within {
@@ -226,44 +246,54 @@ const handleLogin = async () => {
   --color: #000000;
   font-size: 1rem;
   font-weight: 500;
+  flex: 1;
+}
+
+.password-container {
+  display: flex;
+  align-items: center;
+}
+
+.password-input {
+  --padding-end: 48px;
 }
 
 .password-toggle {
   position: absolute;
-  right: 12px;
+  right: 8px;
   top: 50%;
   transform: translateY(-50%);
-  background: none;
+  background: transparent;
   border: none;
-  padding: 8px;
+  padding: 10px;
   cursor: pointer;
   color: #666666;
-  transition: color 0.3s ease;
+  transition: color 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 10;
+  min-width: 40px;
+  min-height: 40px;
 }
 
-.password-toggle:hover {
+.password-toggle:active {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 50%;
+}
+
+.password-toggle:hover:not(:disabled) {
   color: #000000;
 }
 
+.password-toggle:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .password-toggle ion-icon {
-  font-size: 20px;
-}
-
-/* Form Options */
-.form-options {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  font-size: 22px;
+  pointer-events: none;
   cursor: pointer;
   user-select: none;
 }

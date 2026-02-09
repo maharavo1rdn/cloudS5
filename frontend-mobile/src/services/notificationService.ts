@@ -1,5 +1,6 @@
 import { Preferences } from '@capacitor/preferences';
-import { LocalNotifications } from '@capacitor/local-notifications';
+import { PushNotifications, Token, PushNotificationSchema, ActionPerformed } from '@capacitor/push-notifications';
+import { Capacitor } from '@capacitor/core';
 import { 
   collection, 
   query, 
@@ -62,8 +63,13 @@ class NotificationService {
     this.currentUserId = userId;
     this.isInitialized = true;
     
-    // NOTE: La permission sera demandée lors du premier clic utilisateur
-    // pour respecter les règles du navigateur
+    // Charger l'état de la permission depuis le storage
+    await this.hasPermission();
+    
+    // Configurer les listeners natifs si sur mobile
+    if (Capacitor.isNativePlatform()) {
+      this.setupNativeListeners();
+    }
     
     // Charger la dernière date de consultation
     await this.loadLastCheckDate();
@@ -79,19 +85,76 @@ class NotificationService {
   }
 
   /**
+   * Configure les listeners natifs pour PushNotifications (Android/iOS)
+   */
+  private setupNativeListeners() {
+    // Écouter l'enregistrement réussi
+    PushNotifications.addListener('registration', (token: Token) => {
+      console.log('📱 Push notification token:', token.value);
+      // TODO: Envoyer ce token au serveur Firebase pour les notifications push
+    });
+
+    // Écouter les erreurs d'enregistrement
+    PushNotifications.addListener('registrationError', (error: any) => {
+      console.error('❌ Erreur enregistrement push:', error);
+    });
+
+    // Écouter la réception de notifications (app au premier plan)
+    PushNotifications.addListener('pushNotificationReceived', (notification: PushNotificationSchema) => {
+      console.log('📥 Notification reçue (foreground):', notification);
+    });
+
+    // Écouter les actions sur les notifications (clic)
+    PushNotifications.addListener('pushNotificationActionPerformed', (notification: ActionPerformed) => {
+      console.log('👆 Notification cliquée:', notification);
+    });
+
+    console.log('✅ Listeners natifs configurés');
+  }
+
+  /**
    * Demande la permission pour les notifications système
    * Doit être appelée depuis un gestionnaire d'événement utilisateur
    */
   async requestPermission(): Promise<boolean> {
     try {
-      const permission = await LocalNotifications.requestPermissions();
-      this.isPermissionGranted = permission.display === 'granted';
+      // Vérifier si on est sur une plateforme native
+      const isNative = Capacitor.isNativePlatform();
       
-      if (this.isPermissionGranted) {
-        console.log('✅ Permission notifications système accordée');
+      if (isNative) {
+        // Utiliser PushNotifications pour Android/iOS
+        const permission = await PushNotifications.requestPermissions();
+        this.isPermissionGranted = permission.receive === 'granted';
+        
+        if (this.isPermissionGranted) {
+          // Enregistrer pour recevoir des notifications
+          await PushNotifications.register();
+          console.log('✅ Permission notifications push accordée (natif)');
+        } else {
+          console.warn('⚠️ Permission notifications refusée');
+        }
       } else {
-        console.warn('⚠️ Permission notifications système refusée');
+        // Sur le web, vérifier la permission du navigateur
+        if ('Notification' in window) {
+          const permission = await Notification.requestPermission();
+          this.isPermissionGranted = permission === 'granted';
+          console.log(`✅ Permission notifications web: ${permission}`);
+        } else {
+          this.isPermissionGranted = false;
+          console.warn('⚠️ Notifications non supportées sur ce navigateur');
+        }
       }
+      
+      // Sauvegarder l'état de la permission
+      await Preferences.set({
+        key: 'notification_permission_granted',
+        value: this.isPermissionGranted.toString()
+      });
+      
+      await Preferences.set({
+        key: 'notification_permission_asked',
+        value: 'true'
+      });
       
       return this.isPermissionGranted;
     } catch (error) {
@@ -458,36 +521,58 @@ class NotificationService {
     }
 
     try {
-      await LocalNotifications.schedule({
-        notifications: [
-          {
-            title: notification.title,
+      const isNative = Capacitor.isNativePlatform();
+      
+      if (isNative) {
+        // Sur Android/iOS, utiliser PushNotifications
+        // Note: PushNotifications ne peut pas envoyer de notifications locales directement
+        // Il faudrait utiliser Firebase Cloud Messaging pour envoyer depuis le serveur
+        // Pour l'instant, on utilise les notifications web standard sur natif
+        console.log('📱 Notification reçue (natif):', notification.title);
+      } else {
+        // Sur le web, utiliser l'API Notification du navigateur
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(notification.title, {
             body: notification.body,
-            id: parseInt(notification.id.substring(0, 8), 16) || Math.floor(Math.random() * 1000000),
-            schedule: { at: new Date(Date.now() + 1000) }, // 1 seconde de délai
-            sound: undefined,
-            attachments: undefined,
-            actionTypeId: '',
-            extra: {
+            icon: '/assets/icon/favicon.png',
+            tag: notification.id,
+            data: {
               routeId: notification.routeId,
               type: notification.type,
               notificationId: notification.id
             }
-          }
-        ]
-      });
-
-      console.log('📱 Notification système envoyée:', notification.title);
+          });
+          console.log('📱 Notification web envoyée:', notification.title);
+        }
+      }
     } catch (error) {
       console.error('❌ Erreur envoi notification système:', error);
     }
   }
 
   /**
-   * Vérifie si la permission est accordée
+   * Vérifie si la permission est accordée (depuis le storage)
    */
-  hasPermission(): boolean {
-    return this.isPermissionGranted;
+  async hasPermission(): Promise<boolean> {
+    try {
+      const { value } = await Preferences.get({ key: 'notification_permission_granted' });
+      this.isPermissionGranted = value === 'true';
+      return this.isPermissionGranted;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Vérifie si la permission a déjà été demandée
+   */
+  async hasPermissionBeenAsked(): Promise<boolean> {
+    try {
+      const { value } = await Preferences.get({ key: 'notification_permission_asked' });
+      return value === 'true';
+    } catch (error) {
+      return false;
+    }
   }
 
   /**

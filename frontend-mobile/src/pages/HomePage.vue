@@ -826,7 +826,10 @@ const updateNotificationCount = async () => {
 const initializeNotifications = async () => {
   if (currentUserId.value) {
     await notificationService.initialize(currentUserId.value);
-    notificationPermissionGranted.value = notificationService.hasPermission();
+    
+    // Vérifier la permission depuis le storage
+    notificationPermissionGranted.value = await notificationService.hasPermission();
+    
     await updateNotificationCount();
     
     // Vérifier les changements périodiquement (toutes les 30 secondes)

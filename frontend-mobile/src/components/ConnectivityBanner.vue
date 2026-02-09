@@ -9,35 +9,25 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { IonIcon } from '@ionic/vue';
 import { cloudOffline } from 'ionicons/icons';
+import { Network } from '@capacitor/network';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
 const isOnline = ref(true);
-let connectivityCheckInterval: number | null = null;
 
 onMounted(async () => {
   // Vérifier la connectivité initiale
-  await checkConnectivity();
+  const status = await Network.getStatus();
+  isOnline.value = status.connected;
 
-  // Vérifier périodiquement la connectivité
-  connectivityCheckInterval = window.setInterval(async () => {
-    await checkConnectivity();
-  }, 30000); // Toutes les 30 secondes
+  // Écouter les changements de connectivité réseau
+  Network.addListener('networkStatusChange', (status) => {
+    isOnline.value = status.connected;
+  });
 });
 
 onUnmounted(() => {
-  if (connectivityCheckInterval) {
-    clearInterval(connectivityCheckInterval);
-  }
+  // Nettoyer les listeners
+  Network.removeAllListeners();
 });
-
-const checkConnectivity = async () => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/health`, { method: 'GET' });
-    isOnline.value = response.ok;
-  } catch (error) {
-    isOnline.value = false;
-  }
-};
 </script>
 
 <style scoped>
