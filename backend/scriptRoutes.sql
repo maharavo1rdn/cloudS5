@@ -30,6 +30,7 @@ CREATE TABLE points (
     probleme_id INTEGER REFERENCES problemes(id),
     surface_m2 DECIMAL(10,2),
     budget DECIMAL(12,2),
+    prix_par_m2 DECIMAL(12,2),
     entreprise_id INTEGER REFERENCES entreprises(id),
     date_detection DATE DEFAULT CURRENT_DATE,
     date_debut DATE,
@@ -40,6 +41,7 @@ CREATE TABLE points (
     point_statut_id INTEGER REFERENCES point_statut(id),
     firebase_id VARCHAR(255),
     last_synced_at TIMESTAMP,
+    niveau INTEGER,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
