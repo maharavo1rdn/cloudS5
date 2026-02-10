@@ -1,0 +1,36 @@
+{
+  "id": "env-project-routes",
+  "name": "Environnement Local",
+  "values": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "secret",
+      "enabled": true
+    },
+    {
+      "key": "userId",
+      "value": "1",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "entrepriseId",
+      "value": "1",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "pointId",
+      "value": "1",
+      "type": "default",
+      "enabled": true
+    }
+  ]
+}
