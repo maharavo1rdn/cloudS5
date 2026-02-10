@@ -4,6 +4,8 @@ import PointStatut from '../models/PointStatut.js';
 import Probleme from '../models/Probleme.js';
 import Entreprise from '../models/Entreprise.js';
 import PointImage from '../models/PointImage.js';
+import PointHisto from '../models/PointHisto.js';
+import Setting from '../models/Setting.js';
 import authenticateToken from '../middleware/auth.js';
 
 const router = Router();
@@ -19,7 +21,7 @@ const requireManager = (req, res, next) => {
 // GET /api/points
 router.get('/', async (req, res) => {
   try {
-    const { probleme_id, entreprise_id, statut_code } = req.query;
+    const { probleme_id, entreprise_id, statut_code, sans_niveau, sans_prix } = req.query;
     const where = {};
     if (probleme_id) where.probleme_id = probleme_id;
     if (entreprise_id) where.entreprise_id = entreprise_id;
@@ -28,6 +30,9 @@ router.get('/', async (req, res) => {
       const statut = await PointStatut.findOne({ where: { code: statut_code } });
       if (statut) where.point_statut_id = statut.id;
     }
+    // Filtres manager : points sans niveau ou sans prix_par_m2
+    if (sans_niveau === 'true') where.niveau = null;
+    if (sans_prix === 'true') where.prix_par_m2 = null;
 
     const points = await Point.findAll({
       where,
@@ -53,7 +58,8 @@ router.get('/:id', async (req, res) => {
         { model: Probleme, as: 'probleme' },
         { model: Entreprise, as: 'entreprise' },
         { model: PointStatut, as: 'statut' },
-        { model: PointImage, as: 'images', attributes: ['id', 'image_url', 'firebase_url', 'created_at'] }
+        { model: PointImage, as: 'images', attributes: ['id', 'image_url', 'firebase_url', 'created_at'] },
+        { model: PointHisto, as: 'historique', include: [{ model: PointStatut, as: 'statut' }], order: [['date', 'ASC']] }
       ]
     });
     if (!point) return res.status(404).json({ message: 'Point non trouvé' });
@@ -71,10 +77,13 @@ const statutToAvancement = {
   'NOUVEAU': 0
 };
 
-// POST /api/points (Manager)
-router.post('/', authenticateToken, requireManager, async (req, res) => {
+// POST /api/points (tout utilisateur authentifié)
+router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { probleme_id, surface_m2, budget, niveau, prix_par_m2, entreprise_id, date_debut, date_fin, /* avancement_pourcentage, */ latitude, longitude, point_statut_code } = req.body;
+    const { probleme_id, surface_m2, niveau, entreprise_id, date_debut, date_fin, /* avancement_pourcentage, */ latitude, longitude, point_statut_code } = req.body;
+
+    // Seul le manager (level >= 5) peut attribuer un niveau
+    const effectiveNiveau = (req.user && req.user.level >= 5) ? niveau : null;
 
     let statutId = null;
     let computedAvancement = 0;
@@ -86,12 +95,25 @@ router.post('/', authenticateToken, requireManager, async (req, res) => {
       }
     }
 
+    // Récupérer le prix_par_m2 depuis la table settings
+    let prixParM2 = null;
+    const settingPrix = await Setting.findOne({ where: { code: 'prix_par_m2' } });
+    if (settingPrix) {
+      prixParM2 = parseFloat(settingPrix.value);
+    }
+
+    // Auto-calcul du budget : prix_par_m2 * niveau * surface_m2
+    let computedBudget = null;
+    if (prixParM2 && effectiveNiveau && surface_m2) {
+      computedBudget = prixParM2 * parseInt(effectiveNiveau) * parseFloat(surface_m2);
+    }
+
     const point = await Point.create({
       probleme_id,
       surface_m2,
-      budget,
-      niveau,
-      prix_par_m2,
+      budget: computedBudget,
+      niveau: effectiveNiveau,
+      prix_par_m2: prixParM2,
       entreprise_id,
       date_detection: new Date(),
       date_debut,
@@ -122,7 +144,7 @@ router.patch('/:id', authenticateToken, requireManager, async (req, res) => {
     const point = await Point.findByPk(req.params.id);
     if (!point) return res.status(404).json({ message: 'Point non trouvé' });
 
-    const { point_statut_code, /* avancement_pourcentage, */ latitude, longitude, date_debut, date_fin, niveau, prix_par_m2 } = req.body;
+    const { point_statut_code, /* avancement_pourcentage, */ latitude, longitude, date_debut, date_fin, niveau } = req.body;
 
     const update = {};
     if (point_statut_code) {
@@ -137,8 +159,28 @@ router.patch('/:id', authenticateToken, requireManager, async (req, res) => {
     if (longitude !== undefined) update.longitude = longitude;
     if (date_debut !== undefined) update.date_debut = date_debut;
     if (date_fin !== undefined) update.date_fin = date_fin;
-    if (niveau !== undefined) update.niveau = niveau;
-    if (prix_par_m2 !== undefined) update.prix_par_m2 = prix_par_m2;
+    // Le niveau ne peut être modifié que s'il n'est pas encore attribué
+    if (niveau !== undefined) {
+      if (point.niveau !== null && point.niveau !== undefined) {
+        // Le niveau est déjà attribué, on refuse la modification
+        return res.status(400).json({ message: 'Le niveau est déjà attribué et ne peut plus être modifié.' });
+      }
+      update.niveau = niveau;
+    }
+
+    // Récupérer le prix_par_m2 depuis la table settings
+    const settingPrix = await Setting.findOne({ where: { code: 'prix_par_m2' } });
+    if (settingPrix) {
+      update.prix_par_m2 = parseFloat(settingPrix.value);
+    }
+
+    // Auto-calcul du budget : prix_par_m2 * niveau * surface_m2
+    const finalNiveau = update.niveau !== undefined ? update.niveau : point.niveau;
+    const finalPrixM2 = update.prix_par_m2 !== undefined ? update.prix_par_m2 : point.prix_par_m2;
+    const finalSurface = point.surface_m2;
+    if (finalPrixM2 && finalNiveau && finalSurface) {
+      update.budget = parseFloat(finalPrixM2) * parseInt(finalNiveau) * parseFloat(finalSurface);
+    }
 
     await point.update(update);
 

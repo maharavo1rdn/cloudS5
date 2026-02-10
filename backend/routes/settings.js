@@ -12,6 +12,48 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
+// Middleware pour vérifier le rôle manager (level >= 5)
+const requireManager = (req, res, next) => {
+  if (!req.user || req.user.level < 5) {
+    return res.status(403).json({ message: 'Accès refusé. Rôle manager requis.' });
+  }
+  next();
+};
+
+// ==================== Manager routes for prix_par_m2 ====================
+
+// GET /api/settings/prix-par-m2 — accessible aux managers
+router.get('/prix-par-m2', authenticateToken, requireManager, async (req, res) => {
+  try {
+    const setting = await Setting.findOne({ where: { code: 'prix_par_m2' } });
+    if (!setting) {
+      return res.status(404).json({ message: 'Paramètre prix_par_m2 non trouvé' });
+    }
+    res.json({ code: setting.code, value: setting.value, type: setting.type });
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+  }
+});
+
+// PUT /api/settings/prix-par-m2 — accessible aux managers
+router.put('/prix-par-m2', authenticateToken, requireManager, async (req, res) => {
+  try {
+    const { value } = req.body;
+    if (value === undefined || value === null || isNaN(Number(value))) {
+      return res.status(400).json({ message: 'Valeur numérique requise' });
+    }
+    const setting = await Setting.findOne({ where: { code: 'prix_par_m2' } });
+    if (!setting) {
+      return res.status(404).json({ message: 'Paramètre prix_par_m2 non trouvé' });
+    }
+    setting.value = String(value);
+    await setting.save();
+    res.json({ code: setting.code, value: setting.value, type: setting.type });
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+  }
+});
+
 /**
  * @swagger
  * /api/settings:
