@@ -41,7 +41,7 @@ CREATE TABLE points (
     point_statut_id INTEGER REFERENCES point_statut(id),
     firebase_id VARCHAR(255),
     last_synced_at TIMESTAMP,
-    niveau INTEGER BETWEEN 1 AND 10,
+    niveau INTEGER CHECK (niveau >= 1 AND niveau <= 10),
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
