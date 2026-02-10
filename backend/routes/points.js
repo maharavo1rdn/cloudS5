@@ -19,7 +19,7 @@ const requireManager = (req, res, next) => {
 // GET /api/points
 router.get('/', async (req, res) => {
   try {
-    const { probleme_id, entreprise_id, statut_code } = req.query;
+    const { probleme_id, entreprise_id, statut_code, sans_niveau, sans_prix } = req.query;
     const where = {};
     if (probleme_id) where.probleme_id = probleme_id;
     if (entreprise_id) where.entreprise_id = entreprise_id;
@@ -28,6 +28,9 @@ router.get('/', async (req, res) => {
       const statut = await PointStatut.findOne({ where: { code: statut_code } });
       if (statut) where.point_statut_id = statut.id;
     }
+    // Filtres manager : points sans niveau ou sans prix_par_m2
+    if (sans_niveau === 'true') where.niveau = null;
+    if (sans_prix === 'true') where.prix_par_m2 = null;
 
     const points = await Point.findAll({
       where,
@@ -86,10 +89,16 @@ router.post('/', authenticateToken, requireManager, async (req, res) => {
       }
     }
 
+    // Auto-calcul du budget : prix_par_m2 * niveau * surface_m2
+    let computedBudget = budget;
+    if (prix_par_m2 && niveau && surface_m2) {
+      computedBudget = parseFloat(prix_par_m2) * parseInt(niveau) * parseFloat(surface_m2);
+    }
+
     const point = await Point.create({
       probleme_id,
       surface_m2,
-      budget,
+      budget: computedBudget,
       niveau,
       prix_par_m2,
       entreprise_id,
@@ -139,6 +148,14 @@ router.patch('/:id', authenticateToken, requireManager, async (req, res) => {
     if (date_fin !== undefined) update.date_fin = date_fin;
     if (niveau !== undefined) update.niveau = niveau;
     if (prix_par_m2 !== undefined) update.prix_par_m2 = prix_par_m2;
+
+    // Auto-calcul du budget : prix_par_m2 * niveau * surface_m2
+    const finalNiveau = update.niveau !== undefined ? update.niveau : point.niveau;
+    const finalPrixM2 = update.prix_par_m2 !== undefined ? update.prix_par_m2 : point.prix_par_m2;
+    const finalSurface = point.surface_m2;
+    if (finalPrixM2 && finalNiveau && finalSurface) {
+      update.budget = parseFloat(finalPrixM2) * parseInt(finalNiveau) * parseFloat(finalSurface);
+    }
 
     await point.update(update);
 

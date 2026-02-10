@@ -34,12 +34,15 @@ const PointsManager = () => {
     adresse: '',
     surface: '',
     budget: '',
+    niveau: '',
+    prix_par_m2: '',
     entreprise: '',
     status: 'A_FAIRE',
     date_debut: '',
     date_fin: ''
   });
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterBudget, setFilterBudget] = useState('all'); // 'all', 'sans_categorisation'
   const [searchTerm, setSearchTerm] = useState('');
 
   // Filtrer les points
@@ -47,7 +50,9 @@ const PointsManager = () => {
     const matchesStatus = filterStatus === 'all' || p.status === filterStatus;
     const matchesSearch = p.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          p.adresse.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesStatus && matchesSearch;
+    const matchesBudget = filterBudget === 'all' || 
+      (filterBudget === 'sans_categorisation' && (!p.niveau || !p.prix_par_m2));
+    return matchesStatus && matchesSearch && matchesBudget;
   });
 
   // Commencer l'édition
@@ -91,7 +96,9 @@ const PointsManager = () => {
       await addPoint({
         ...newPoint,
         surface: parseFloat(newPoint.surface) || 0,
-        budget: parseFloat(newPoint.budget) || 0
+        budget: parseFloat(newPoint.budget) || 0,
+        niveau: newPoint.niveau ? parseInt(newPoint.niveau) : null,
+        prix_par_m2: newPoint.prix_par_m2 ? parseFloat(newPoint.prix_par_m2) : null
       });
       setShowAddForm(false);
       setNewPoint({
@@ -101,6 +108,8 @@ const PointsManager = () => {
         adresse: '',
         surface: '',
         budget: '',
+        niveau: '',
+        prix_par_m2: '',
         entreprise: '',
         status: 'A_FAIRE',
         date_debut: '',
@@ -231,6 +240,13 @@ const PointsManager = () => {
           >
             Terminés
           </button>
+          <button 
+            className={`filter-btn filter-btn-warning ${filterBudget === 'sans_categorisation' ? 'active' : ''}`}
+            onClick={() => setFilterBudget(filterBudget === 'sans_categorisation' ? 'all' : 'sans_categorisation')}
+            title="Points sans niveau ou sans prix/m²"
+          >
+            Sans catégorisation
+          </button>
         </div>
       </div>
 
@@ -298,12 +314,40 @@ const PointsManager = () => {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Budget (Ar)</label>
+                  <label>Budget (Ar) <small style={{color:'#888'}}>auto-calculé</small></label>
                   <input
                     type="number"
-                    value={newPoint.budget}
-                    onChange={(e) => setNewPoint({...newPoint, budget: e.target.value})}
-                    placeholder="0"
+                    value={
+                      newPoint.prix_par_m2 && newPoint.niveau && newPoint.surface
+                        ? (parseFloat(newPoint.prix_par_m2) * parseInt(newPoint.niveau) * parseFloat(newPoint.surface)).toFixed(2)
+                        : newPoint.budget
+                    }
+                    readOnly
+                    placeholder="prix_par_m2 × niveau × surface"
+                    style={{backgroundColor: '#f0f0f0'}}
+                  />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Niveau (1-10)</label>
+                  <select
+                    value={newPoint.niveau}
+                    onChange={(e) => setNewPoint({...newPoint, niveau: e.target.value})}
+                  >
+                    <option value="">-- Sélectionner --</option>
+                    {[1,2,3,4,5,6,7,8,9,10].map(n => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Prix par m² (Ar)</label>
+                  <input
+                    type="number"
+                    value={newPoint.prix_par_m2}
+                    onChange={(e) => setNewPoint({...newPoint, prix_par_m2: e.target.value})}
+                    placeholder="Ex: 150000"
                   />
                 </div>
               </div>
@@ -403,11 +447,39 @@ const PointsManager = () => {
                     />
                   </div>
                   <div className="form-group">
-                    <label>Budget (Ar)</label>
+                    <label>Budget (Ar) <small style={{color:'#888'}}>auto-calculé</small></label>
                     <input
                       type="number"
-                      value={editData.budget}
-                      onChange={(e) => setEditData({...editData, budget: parseFloat(e.target.value)})}
+                      value={
+                        editData.prix_par_m2 && editData.niveau && editData.surface
+                          ? (parseFloat(editData.prix_par_m2) * parseInt(editData.niveau) * parseFloat(editData.surface)).toFixed(2)
+                          : editData.budget
+                      }
+                      readOnly
+                      style={{backgroundColor: '#f0f0f0'}}
+                    />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Niveau (1-10)</label>
+                    <select
+                      value={editData.niveau || ''}
+                      onChange={(e) => setEditData({...editData, niveau: e.target.value ? parseInt(e.target.value) : null})}
+                    >
+                      <option value="">-- Sélectionner --</option>
+                      {[1,2,3,4,5,6,7,8,9,10].map(n => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Prix par m² (Ar)</label>
+                    <input
+                      type="number"
+                      value={editData.prix_par_m2 || ''}
+                      onChange={(e) => setEditData({...editData, prix_par_m2: e.target.value ? parseFloat(e.target.value) : null})}
+                      placeholder="Ex: 150000"
                     />
                   </div>
                 </div>
@@ -482,6 +554,14 @@ const PointsManager = () => {
                   <div className="detail-item">
                     <span className="detail-label">Surface</span>
                     <span className="detail-value">{point.surface} m²</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Niveau</span>
+                    <span className="detail-value">{point.niveau ? <span className="niveau-badge">{point.niveau}/10</span> : <span className="text-muted">Non défini</span>}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Prix/m²</span>
+                    <span className="detail-value">{point.prix_par_m2 ? `${point.prix_par_m2.toLocaleString()} Ar` : <span className="text-muted">Non défini</span>}</span>
                   </div>
                   <div className="detail-item">
                     <span className="detail-label">Budget</span>

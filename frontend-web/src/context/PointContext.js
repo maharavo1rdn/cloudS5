@@ -40,6 +40,8 @@ export const PointProvider = ({ children }) => {
         status: p.statut?.code?.toLowerCase() || 'nouveau',  // statut (alias Sequelize) et non point_statut
         surface: parseFloat(p.surface_m2) || 0,
         budget: parseFloat(p.budget) || 0,
+        niveau: p.niveau || null,
+        prix_par_m2: p.prix_par_m2 ? parseFloat(p.prix_par_m2) : null,
         entreprise: p.entreprise?.nom || null,
         description: p.nom || p.probleme?.nom || 'Sans description',
         adresse: p.description || '',
@@ -68,6 +70,8 @@ export const PointProvider = ({ children }) => {
         longitude: pointData.longitude,
         surface_m2: pointData.surface || 0,
         budget: pointData.budget || 0,
+        niveau: pointData.niveau || null,
+        prix_par_m2: pointData.prix_par_m2 || null,
         probleme_id: 1, // À adapter selon le problème sélectionné
         point_statut_code: 'A_FAIRE',
         date_detection: new Date().toISOString().split('T')[0]
@@ -100,6 +104,8 @@ export const PointProvider = ({ children }) => {
       if (updates.commentaire) apiUpdates.commentaire = updates.commentaire;
       if (updates.date_debut !== undefined) apiUpdates.date_debut = updates.date_debut;
       if (updates.date_fin !== undefined) apiUpdates.date_fin = updates.date_fin;
+      if (updates.niveau !== undefined) apiUpdates.niveau = updates.niveau;
+      if (updates.prix_par_m2 !== undefined) apiUpdates.prix_par_m2 = updates.prix_par_m2;
       
       await pointsAPI.update(id, apiUpdates);
       

@@ -20,6 +20,8 @@ const HomePage = () => {
   const [newLon, setNewLon] = React.useState('');
   const [newSurface, setNewSurface] = React.useState('');
   const [newBudget, setNewBudget] = React.useState('');
+  const [newNiveau, setNewNiveau] = React.useState('');
+  const [newPrixM2, setNewPrixM2] = React.useState('');
   const [newDateDebut, setNewDateDebut] = React.useState('');
   const [newDateFin, setNewDateFin] = React.useState('');
   const [newStatut, setNewStatut] = React.useState('');
@@ -116,7 +118,25 @@ const HomePage = () => {
                 </div>
                 <div className="form-row">
                   <input placeholder="Surface (m²)" value={newSurface} onChange={e => setNewSurface(e.target.value)} />
-                  <input placeholder="Budget" value={newBudget} onChange={e => setNewBudget(e.target.value)} />
+                  <input 
+                    placeholder="Budget (auto-calculé)" 
+                    value={
+                      newPrixM2 && newNiveau && newSurface
+                        ? (parseFloat(newPrixM2) * parseInt(newNiveau) * parseFloat(newSurface)).toFixed(2)
+                        : newBudget
+                    }
+                    readOnly
+                    style={{backgroundColor: '#f0f0f0'}}
+                  />
+                </div>
+                <div className="form-row">
+                  <select value={newNiveau} onChange={e => setNewNiveau(e.target.value)}>
+                    <option value="">Niveau (1-10)</option>
+                    {[1,2,3,4,5,6,7,8,9,10].map(n => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                  <input placeholder="Prix par m² (Ar)" type="number" value={newPrixM2} onChange={e => setNewPrixM2(e.target.value)} />
                 </div>
                 <div className="form-row">
                   <input type="date" placeholder="Date début" value={newDateDebut} onChange={e => setNewDateDebut(e.target.value)} />
@@ -132,13 +152,15 @@ const HomePage = () => {
                         lon: parseFloat(newLon),
                         surface_m2: newSurface ? parseFloat(newSurface) : null,
                         budget: newBudget ? parseFloat(newBudget) : null,
+                        niveau: newNiveau ? parseInt(newNiveau) : null,
+                        prix_par_m2: newPrixM2 ? parseFloat(newPrixM2) : null,
                         date_debut: newDateDebut || null,
                         date_fin: newDateFin || null,
                         point_statut_code: newStatut || undefined
                       });
                       alert('Point créé');
                       setShowCreatePoint(false);
-                      setNewLat(''); setNewLon(''); setNewSurface(''); setNewBudget(''); setNewDateDebut(''); setNewDateFin('');
+                      setNewLat(''); setNewLon(''); setNewSurface(''); setNewBudget(''); setNewNiveau(''); setNewPrixM2(''); setNewDateDebut(''); setNewDateFin('');
                       await loadRecapitulatif();
                       await loadRoutesEnTravaux();
                     } catch (err) {
