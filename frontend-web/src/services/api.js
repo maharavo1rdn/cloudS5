@@ -196,4 +196,20 @@ export const syncAPI = {
   }
 };
 
+// ==================== SETTINGS API (Manager) ====================
+export const settingsAPI = {
+  // Récupérer le prix par m² depuis settings
+  getPrixParM2: async () => {
+    return apiCall('/settings/prix-par-m2');
+  },
+
+  // Mettre à jour le prix par m²
+  updatePrixParM2: async (value) => {
+    return apiCall('/settings/prix-par-m2', {
+      method: 'PUT',
+      body: JSON.stringify({ value: String(value) })
+    });
+  }
+};
+
 export { getToken, setToken, removeToken };

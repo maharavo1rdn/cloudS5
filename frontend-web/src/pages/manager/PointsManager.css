@@ -26,9 +26,99 @@
   margin: 0;
 }
 
+.manager-header-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
 
+/* Settings button */
+.btn-settings {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
 
-.btn-add {
+.btn-settings:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+/* Settings panel */
+.settings-panel {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.settings-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.settings-panel-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+}
+
+.settings-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.setting-item label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 8px;
+}
+
+.setting-input-group {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.setting-input-group input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.setting-hint {
+  display: block;
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.setting-hint strong {
+  color: #1e293b;
+}.btn-add {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -104,6 +194,35 @@
   background: #1e293b;
   color: white;
   border-color: #1e293b;
+}
+
+.filter-btn-warning.active {
+  background: #f59e0b;
+  color: white;
+  border-color: #f59e0b;
+}
+
+.filter-btn-success.active {
+  background: #22c55e;
+  color: white;
+  border-color: #22c55e;
+}
+
+/* Niveau badge */
+.niveau-badge {
+  display: inline-block;
+  background: #3b82f6;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.text-muted {
+  color: #94a3b8;
+  font-style: italic;
+  font-size: 12px;
 }
 
 /* Liste des points */

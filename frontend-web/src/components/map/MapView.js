@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import routesAPI from '../../services/routesAPI';
 import { pointsAPI } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import PhotoGalleryModal from '../gallery/PhotoGalleryModal';
 import './MapView.css';
 
@@ -68,6 +69,7 @@ function MapClickHandler({ setPopupInfo, onRightClick }) {
 }
 
 const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
+  const { isManager } = useAuth();
   const [points, setPoints] = useState([]);
   const [allPoints, setAllPoints] = useState([]);
   const [statuts, setStatuts] = useState([]);
@@ -320,7 +322,7 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
         probleme_id: parseInt(formData.probleme_id) || 1,
         point_statut_code: 'A_FAIRE',
         surface_m2: parseFloat(formData.surface_m2) || 0,
-        budget: parseFloat(formData.budget) || 0,
+        niveau: formData.niveau ? parseInt(formData.niveau) : null,
         date_detection: new Date().toISOString().split('T')[0]
       };
 
@@ -494,6 +496,47 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
                   mouseout: () => setPopupInfo(null)
                 }}
               >
+                {/* Tooltip au survol */}
+                <Tooltip
+                  direction="top"
+                  offset={[0, -20]}
+                  permanent={hoveredMarker === point.id}
+                  className="marker-tooltip"
+                >
+                    <div className="tooltip-content">
+                      <div className="tooltip-header">
+                        <span 
+                          className="tooltip-status"
+                          style={{ backgroundColor: getStatusColor(statutCode) }}
+                        >
+                          {getStatusIcon(statutCode)}
+                          <span>{getStatusLabel(statutCode)}</span>
+                        </span>
+                        <span className="tooltip-date">
+                          {routesAPI.formatDate(point.dateDetection || point.date_detection)}
+                        </span>
+                      </div>
+                      <p className="tooltip-description">{point.nom || point.probleme}</p>
+                      <p className="tooltip-address">
+                        {formatCoordonnees(lat, lng)}
+                      </p>
+                      <div className="tooltip-details">
+                        <span>Surface: {point.surfaceM2 || point.surface_m2 || 'N/A'} m²</span>
+                        <span>Budget: {formatBudget(point.budget)}</span>
+                      </div>
+                      <div className="tooltip-details">
+                        <span>Niveau: {point.niveau ? `${point.niveau}/10` : 'Non défini'}</span>
+                        <span>Avancement: {point.avancementPourcentage || point.avancement_pourcentage || 0}%</span>
+                      </div>
+                      <div className="tooltip-details">
+                        {point.entreprise && (
+                          <span className="tooltip-entreprise">
+                            🏗️ {point.entreprise?.nom || point.entreprise}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </Tooltip>
               </Marker>
             );
           })}
@@ -653,7 +696,7 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
                 description: formData.get('description'),
                 probleme_id: formData.get('probleme_id'),
                 surface_m2: formData.get('surface_m2'),
-                budget: formData.get('budget')
+                niveau: formData.get('niveau')
               });
             }}>
               <div className="form-group">
@@ -707,16 +750,17 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
                     className="form-control"
                   />
                 </div>
-                <div className="form-group">
-                  <label>Budget estimé (Ar)</label>
-                  <input 
-                    type="number" 
-                    name="budget"
-                    step="0.01"
-                    placeholder="0"
-                    className="form-control"
-                  />
-                </div>
+                {isManager() && (
+                  <div className="form-group">
+                    <label>Niveau (1-10)</label>
+                    <select name="niveau" className="form-control">
+                      <option value="">-- Aucun --</option>
+                      {[1,2,3,4,5,6,7,8,9,10].map(n => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
               <div className="form-actions">
                 <button type="button" onClick={() => setShowCreateModal(false)} className="btn-cancel">

@@ -1,5 +1,6 @@
 import User from '../models/User.js';
 import LoginAttempt from '../models/LoginAttempt.js';
+import { Op } from 'sequelize';
 
 class UserService {
   // Récupérer un utilisateur par ID
@@ -77,7 +78,7 @@ class UserService {
     if (!username || !email || !password) throw new Error('username, email et password requis');
 
     // Vérifier unicité
-    const existing = await User.findOne({ where: { [User.sequelize.Op.or]: [{ email }, { username }] } });
+    const existing = await User.findOne({ where: { [Op.or]: [{ email }, { username }] } });
     if (existing) throw new Error('Utilisateur déjà existant');
 
     // Trouver le rôle
