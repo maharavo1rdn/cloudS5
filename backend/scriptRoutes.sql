@@ -41,11 +41,10 @@ CREATE TABLE points (
     point_statut_id INTEGER REFERENCES point_statut(id),
     firebase_id VARCHAR(255),
     last_synced_at TIMESTAMP,
-    niveau INTEGER CHECK (niveau >= 1 AND niveau <= 10),
+    niveau INTEGER CHECK (niveau IS NULL OR (niveau >= 1 AND niveau <= 10)), -- Correct
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
-
 CREATE TABLE points_images (
     id SERIAL PRIMARY KEY,
     point_id INTEGER REFERENCES points(id) ON DELETE CASCADE,

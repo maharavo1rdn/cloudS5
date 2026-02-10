@@ -35,6 +35,8 @@ class RouteService {
           'description',
           'surface_m2',
           'budget',
+          'niveau',
+          'prix_par_m2',
           'date_detection',
           'date_debut',
           'date_fin',
@@ -87,6 +89,8 @@ class RouteService {
           'id',
           'surface_m2',
           'budget',
+          'niveau',
+          'prix_par_m2',
           'date_detection',
           'date_debut',
           'avancement_pourcentage',
@@ -144,6 +148,8 @@ class RouteService {
           'id',
           'surface_m2',
           'budget',
+          'niveau',
+          'prix_par_m2',
           'date_detection',
           'date_debut',
           'date_fin',
@@ -297,7 +303,9 @@ class RouteService {
           COUNT(p.id) as nombre_points,
           COALESCE(SUM(p.surface_m2), 0) as surface_totale,
           COALESCE(SUM(p.budget), 0) as budget_total,
-          COALESCE(AVG(p.avancement_pourcentage), 0) as moyenne_avancement
+          COALESCE(AVG(p.avancement_pourcentage), 0) as moyenne_avancement,
+          COALESCE(AVG(p.niveau), 0) as moyenne_niveau,
+          COALESCE(AVG(p.prix_par_m2), 0) as moyenne_prix_m2
         FROM point_statut ps
         LEFT JOIN points p ON ps.id = p.point_statut_id
         GROUP BY ps.id, ps.code, ps.description, ps.niveau
@@ -331,6 +339,8 @@ class RouteService {
           'date_detection', 
           'surface_m2', 
           'budget', 
+          'niveau',
+          'prix_par_m2',
           'avancement_pourcentage',
           'latitude',
           'longitude'
@@ -375,7 +385,9 @@ class RouteService {
           nombre_points: parseInt(statut.nombre_points) || 0,
           surface_totale: parseFloat(statut.surface_totale) || 0,
           budget_total: parseFloat(statut.budget_total) || 0,
-          moyenne_avancement: Math.round(parseFloat(statut.moyenne_avancement) * 100) / 100
+          moyenne_avancement: Math.round(parseFloat(statut.moyenne_avancement) * 100) / 100,
+          moyenne_niveau: Math.round(parseFloat(statut.moyenne_niveau) * 100) / 100,
+          moyenne_prix_m2: parseFloat(statut.moyenne_prix_m2) || 0
         })),
         points_recents: pointsRecents.map(point => ({
           id: point.id,
@@ -384,6 +396,8 @@ class RouteService {
           statut: point.statut ? point.statut.code : 'Non défini',
           surface_m2: point.surface_m2,
           budget: point.budget,
+          niveau: point.niveau,
+          prix_par_m2: point.prix_par_m2,
           avancement_pourcentage: point.avancement_pourcentage,
           location: point.latitude && point.longitude ? 
             { lat: point.latitude, lng: point.longitude } : null
