@@ -68,7 +68,8 @@ ON CONFLICT (email) DO NOTHING;
 -- Insérer les paramètres par défaut
 INSERT INTO settings (code, value, type) VALUES
 ('max_login_attempts', '3', 'number'),
-('session_lifetime_hours', '24', 'number')
+('session_lifetime_hours', '24', 'number'),
+('prix_par_m2', '50', 'number')
 ON CONFLICT (code) DO NOTHING;
 
 -- Vérifier les données
