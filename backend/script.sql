@@ -69,7 +69,7 @@ ON CONFLICT (email) DO NOTHING;
 INSERT INTO settings (code, value, type) VALUES
 ('max_login_attempts', '3', 'number'),
 ('session_lifetime_hours', '24', 'number'),
-('prix_par_m2', '50', 'number')
+('prix_par_m2', '1000000', 'number')
 ON CONFLICT (code) DO NOTHING;
 
 -- Vérifier les données

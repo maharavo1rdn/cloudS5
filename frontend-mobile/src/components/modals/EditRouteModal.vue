@@ -149,22 +149,51 @@
           </div>
         </div>
 
-        <!-- Budget -->
+        <!-- Niveau de réparation (Manager only, immutable once set) -->
+        <div v-if="isManager" class="input-wrapper">
+          <label class="input-label">
+            <ion-icon :icon="statsChartOutline" class="label-icon"></ion-icon>
+            <span>Niveau de réparation (1-10)</span>
+          </label>
+          <div class="input-container" :class="{ focused: niveauFocused }">
+            <ion-input
+              v-model.number="form.niveau"
+              type="number"
+              min="1"
+              max="10"
+              step="1"
+              :disabled="loading || originalNiveauLocked"
+              placeholder="1 à 10"
+              @ionFocus="niveauFocused = true"
+              @ionBlur="niveauFocused = false"
+            ></ion-input>
+          </div>
+          <div v-if="originalNiveauLocked" class="locked-hint">
+            <ion-icon :icon="lockClosedOutline"></ion-icon>
+            <span>Niveau verrouillé (déjà défini par un manager)</span>
+          </div>
+        </div>
+
+        <!-- Budget calculé automatiquement (immutable une fois défini) -->
         <div class="input-wrapper">
           <label class="input-label">
             <ion-icon :icon="cashOutline" class="label-icon"></ion-icon>
-            <span>Budget estimé (Ar)</span>
+            <span>Budget (Ar)</span>
           </label>
-          <div class="input-container" :class="{ focused: budgetFocused }">
-            <ion-input
-              v-model.number="form.budget"
-              type="number"
-              step="0.01"
-              :disabled="loading"
-              placeholder="0.00"
-              @ionFocus="budgetFocused = true"
-              @ionBlur="budgetFocused = false"
-            ></ion-input>
+          <div v-if="originalBudgetLocked" class="budget-display">
+            <span class="budget-value">{{ Number(props.route?.budget).toLocaleString('fr-FR') }} Ar</span>
+            <span class="budget-formula">
+              <ion-icon :icon="lockClosedOutline" style="font-size: 12px; margin-right: 4px;"></ion-icon>
+              Budget verrouillé (déjà calculé)
+            </span>
+          </div>
+          <div v-else-if="computedBudget > 0" class="budget-display">
+            <span class="budget-value">{{ computedBudget.toLocaleString('fr-FR') }} Ar</span>
+            <span class="budget-formula">= {{ settingsPrixM2.toLocaleString('fr-FR') }} (prix/m²) × {{ form.niveau }} × {{ form.surface_m2 }} m²</span>
+          </div>
+          <div v-else class="budget-display budget-empty">
+            <span class="budget-value">Non défini</span>
+            <span class="budget-formula">Le manager doit définir le niveau pour calculer le budget</span>
           </div>
         </div>
 
@@ -270,9 +299,12 @@ import {
   calendarOutline,
   statsChart,
   businessOutline,
+  statsChartOutline,
+  lockClosedOutline,
 } from 'ionicons/icons';
 import routeService from '../../services/routeService';
 import authService from '../../services/authService';
+import settingsService from '../../services/settingsService';
 import { Probleme, PointStatut, Route, Entreprise } from '../../types/route.types';
 
 const entreprises = ref<Entreprise[]>([]);
@@ -291,7 +323,7 @@ const form = ref<{
   probleme_id: string;
   point_statut: PointStatut;
   surface_m2: number | undefined;
-  budget: number | undefined;
+  niveau: number | undefined;
   date_debut: string;
   date_fin: string;
   entreprise_id?: string;
@@ -301,10 +333,29 @@ const form = ref<{
   probleme_id: '',
   point_statut: 'A_FAIRE',
   surface_m2: undefined,
-  budget: undefined,
+  niveau: undefined,
   date_debut: '',
   date_fin: '',
   entreprise_id: undefined,
+});
+
+// Verrouillage: si les valeurs originales existent déjà, elles ne peuvent plus être modifiées
+const originalNiveauLocked = ref(false);
+const originalBudgetLocked = ref(false);
+
+const niveauFocused = ref(false);
+const settingsPrixM2 = ref(0);
+
+// Budget calculé automatiquement: prix_par_m2 (settings) * niveau * surface_m2
+const computedBudget = computed(() => {
+  if (originalBudgetLocked.value) return 0; // Already locked, we show the original value instead
+  const n = form.value.niveau;
+  const p = settingsPrixM2.value;
+  const s = form.value.surface_m2;
+  if (n && p && s && n >= 1 && n <= 10) {
+    return p * n * s;
+  }
+  return 0;
 });
 
 const entrepriseFocused = ref(false);
@@ -364,10 +415,14 @@ watch(() => props.route, (newRoute) => {
       probleme_id: newRoute.probleme_id || '',
       point_statut: newRoute.point_statut || 'NOUVEAU',
       surface_m2: newRoute.surface_m2,
-      budget: newRoute.budget,
+      niveau: newRoute.niveau ?? undefined,
       date_debut: newRoute.date_debut ? newRoute.date_debut.toISOString().split('T')[0] : '',
       date_fin: newRoute.date_fin ? newRoute.date_fin.toISOString().split('T')[0] : '',
     };
+    // Verrouiller le niveau s'il est déjà défini
+    originalNiveauLocked.value = newRoute.niveau != null && newRoute.niveau > 0;
+    // Verrouiller le budget s'il est déjà calculé (immutable une fois défini)
+    originalBudgetLocked.value = newRoute.budget != null && Number(newRoute.budget) > 0;
   }
 }, { immediate: true });
 
@@ -384,6 +439,8 @@ onMounted(async () => {
   await loadProblemes();
   entreprises.value = await routeService.getEntreprises();
   isManager.value = await authService.isManager();
+  // Charger le prix_par_m2 depuis les settings
+  settingsPrixM2.value = await settingsService.getSetting('prix_par_m2', 0);
 });
 
 // Charger les entreprises et autres valeurs
@@ -395,11 +452,15 @@ watch(() => props.route, (newRoute) => {
       probleme_id: newRoute.probleme_id || '',
       point_statut: newRoute.point_statut || 'NOUVEAU',
       surface_m2: newRoute.surface_m2,
-      budget: newRoute.budget,
+      niveau: newRoute.niveau ?? undefined,
       date_debut: newRoute.date_debut ? newRoute.date_debut.toISOString().split('T')[0] : '',
       date_fin: newRoute.date_fin ? newRoute.date_fin.toISOString().split('T')[0] : '',
       entreprise_id: newRoute.entreprise_id || undefined,
     };
+    // Verrouiller le niveau s'il est déjà défini
+    originalNiveauLocked.value = newRoute.niveau != null && newRoute.niveau > 0;
+    // Verrouiller le budget s'il est déjà calculé (immutable une fois défini)
+    originalBudgetLocked.value = newRoute.budget != null && Number(newRoute.budget) > 0;
   }
 }, { immediate: true });
 
@@ -441,7 +502,8 @@ const handleSubmit = async () => {
       probleme_id: form.value.probleme_id,
       point_statut: form.value.point_statut,
       surface_m2: form.value.surface_m2,
-      budget: form.value.budget,
+      niveau: form.value.niveau || undefined,
+      prix_par_m2: settingsPrixM2.value || undefined,
       entreprise_id: form.value.entreprise_id || undefined,
       date_debut: form.value.date_debut ? new Date(form.value.date_debut) : undefined,
       date_fin: form.value.date_fin ? new Date(form.value.date_fin) : undefined,
@@ -550,6 +612,58 @@ ion-content {
   width: 100%;
   margin: 0 auto;
   padding: 0 12px;
+}
+
+.budget-display {
+  background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+  border: 2px solid #86efac;
+  border-radius: 16px;
+  padding: 16px;
+  text-align: center;
+}
+
+.budget-display.budget-empty {
+  background: linear-gradient(135deg, #fefce8, #fef9c3);
+  border-color: #fde047;
+}
+
+.budget-value {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+  color: #166534;
+  margin-bottom: 4px;
+}
+
+.budget-empty .budget-value {
+  color: #854d0e;
+  font-size: 16px;
+}
+
+.budget-formula {
+  display: block;
+  font-size: 12px;
+  color: #4ade80;
+  font-weight: 500;
+}
+
+.budget-empty .budget-formula {
+  color: #ca8a04;
+}
+
+.locked-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.locked-hint ion-icon {
+  font-size: 14px;
+  color: #cbd5e1;
 }
 
 .input-wrapper {

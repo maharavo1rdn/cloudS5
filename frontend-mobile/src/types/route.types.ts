@@ -50,6 +50,8 @@ export interface Point {
   // Détails technique
   surface_m2?: number;
   budget?: number;
+  niveau?: number | null;
+  prix_par_m2?: number | null;
   
   // Entreprise et dates
   entreprise_id?: string;
@@ -84,6 +86,8 @@ export interface CreatePointInput {
   longitude: number;
   surface_m2?: number;
   budget?: number;
+  niveau?: number | null;
+  prix_par_m2?: number | null;
   entreprise_id?: string;
   date_debut?: Date;
   date_fin?: Date;

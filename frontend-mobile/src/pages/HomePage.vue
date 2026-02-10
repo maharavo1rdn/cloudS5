@@ -18,6 +18,9 @@
           <ion-button v-if="isManager" @click="showStatsModal = true" fill="clear" title="Statistiques">
             <ion-icon :icon="statsChart" slot="icon-only"></ion-icon>
           </ion-button>
+          <ion-button v-if="isManager" @click="showSettingsModal = true" fill="clear" title="Paramètres">
+            <ion-icon :icon="settingsOutline" slot="icon-only"></ion-icon>
+          </ion-button>
           <ion-button @click="showNotificationsModal = true" fill="clear" title="Notifications" class="notification-btn">
             <ion-icon :icon="notifications" slot="icon-only"></ion-icon>
             <ion-badge v-if="notificationCount > 0" class="notification-badge">{{ notificationCount }}</ion-badge>
@@ -70,6 +73,17 @@
           >
             <ion-icon :icon="person" slot="start"></ion-icon>
             {{ showOnlyMyReports ? 'Tous les signalements' : 'Mes signalements' }}
+          </ion-button>
+          <ion-button 
+            v-if="isManager"
+            :fill="showOnlyWithoutNiveau ? 'solid' : 'outline'"
+            size="small"
+            @click="showOnlyWithoutNiveau = !showOnlyWithoutNiveau"
+            class="filter-btn"
+            color="warning"
+          >
+            <ion-icon :icon="filterOutline" slot="start"></ion-icon>
+            {{ showOnlyWithoutNiveau ? 'Tous' : 'Sans niveau' }}
           </ion-button>
         </div>
       </ion-toolbar>
@@ -168,6 +182,21 @@
               <div v-if="route.surface_m2" class="route-card-field">
                 <span class="field-label">Surface</span>
                 <span class="field-value">{{ route.surface_m2 }} m²</span>
+              </div>
+
+              <div v-if="route.niveau" class="route-card-field">
+                <span class="field-label">Niveau</span>
+                <span class="field-value">{{ route.niveau }} / 10</span>
+              </div>
+
+              <div v-if="route.budget" class="route-card-field">
+                <span class="field-label">Budget</span>
+                <span class="field-value">{{ Number(route.budget).toLocaleString('fr-FR') }} Ar</span>
+              </div>
+
+              <div v-if="!route.niveau && isManager" class="route-card-field">
+                <span class="field-label">Niveau</span>
+                <span class="field-value" style="color: #f59e0b; font-style: italic;">Non défini</span>
               </div>
               
               <div v-if="route.latitude && route.longitude" class="route-card-field">
@@ -279,6 +308,12 @@
       @close="showPhotoGallery = false"
     />
 
+    <SettingsModal
+      v-if="isManager"
+      :is-open="showSettingsModal"
+      @close="showSettingsModal = false"
+    />
+
     <NotificationsModal
       :is-open="showNotificationsModal"
       @close="handleNotificationsClose"
@@ -302,7 +337,7 @@ import {
   IonFabButton,
   IonSpinner,
 } from '@ionic/vue';
-import { logOut, add, personAdd, locate, warning, alertCircle, construct, checkmarkCircle, map as mapIcon, list, person, documentOutline, pencil, refreshCircle, statsChart, notifications } from 'ionicons/icons';
+import { logOut, add, personAdd, locate, warning, alertCircle, construct, checkmarkCircle, map as mapIcon, list, person, documentOutline, pencil, refreshCircle, statsChart, notifications, filterOutline, settingsOutline } from 'ionicons/icons';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Preferences } from '@capacitor/preferences';
@@ -315,6 +350,7 @@ import BlockedUsersModal from '../components/modals/BlockedUsersModal.vue';
 import StatisticsModal from '../components/modals/StatisticsModal.vue';
 import PhotoGalleryModal from '../components/modals/PhotoGalleryModal.vue';
 import NotificationsModal from '../components/modals/NotificationsModal.vue';
+import SettingsModal from '../components/modals/SettingsModal.vue';
 import ConnectivityBanner from '../components/ConnectivityBanner.vue';
 import { Route, PointImage } from '../types/route.types';
 import { notificationService } from '../services/notificationService';
@@ -330,6 +366,7 @@ const showBlockedModal = ref(false);
 const showStatsModal = ref(false);
 const showPhotoGallery = ref(false);
 const showNotificationsModal = ref(false);
+const showSettingsModal = ref(false);
 const notificationCount = ref(0);
 const notificationPermissionGranted = ref(false);
 const selectedRoute = ref<Route | null>(null);
@@ -340,6 +377,7 @@ const routes = ref<Route[]>([]);
 const isLoadingRoutes = ref(false);
 const viewMode = ref<'map' | 'list'>('map');
 const showOnlyMyReports = ref(false);
+const showOnlyWithoutNiveau = ref(false);
 const currentUserId = ref<string>('');
 let map: L.Map | null = null;
 let userMarker: L.Marker | null = null;
@@ -347,10 +385,14 @@ let routeMarkers: L.Marker[] = [];
 const geolocationStatus = ref<'loading' | 'success' | 'error' | 'default'>('loading');
 
 const filteredRoutes = computed(() => {
-  if (!showOnlyMyReports.value) {
-    return routes.value;
+  let result = routes.value;
+  if (showOnlyMyReports.value) {
+    result = result.filter(r => r.created_by === currentUserId.value);
   }
-  return routes.value.filter(r => r.created_by === currentUserId.value);
+  if (showOnlyWithoutNiveau.value) {
+    result = result.filter(r => !r.niveau);
+  }
+  return result;
 });
 
 const routesByStatus = computed(() => {
