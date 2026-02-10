@@ -172,6 +172,32 @@ class UserService {
       throw error;
     }
   }
+
+  // Mettre à jour un utilisateur (Manager uniquement)
+  async updateUser(userId: string, updates: { username?: string; email?: string; role?: string }): Promise<void> {
+    try {
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        ...updates,
+        updatedAt: Timestamp.now(),
+      });
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour de l\'utilisateur:', error);
+      throw error;
+    }
+  }
+
+  // Supprimer un utilisateur (Manager uniquement)
+  async deleteUser(userId: string): Promise<void> {
+    try {
+      const { deleteDoc } = await import('firebase/firestore');
+      const userRef = doc(db, 'users', userId);
+      await deleteDoc(userRef);
+    } catch (error) {
+      console.error('Erreur lors de la suppression de l\'utilisateur:', error);
+      throw error;
+    }
+  }
 }
 
 export default new UserService();

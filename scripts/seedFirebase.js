@@ -61,7 +61,8 @@ const entreprises = [
 const settings = [
   { code: 'max_login_attempts', value: '3', type: 'number' },
   { code: 'session_lifetime_hours', value: '24', type: 'number' },
-  { code: 'block_duration_minutes', value: '15', type: 'number' }
+  { code: 'block_duration_minutes', value: '15', type: 'number' },
+  { code: 'prix_par_m2', value: '1000000', type: 'number' }
 ];
 
 const routes = [
@@ -338,7 +339,9 @@ async function seedDatabase() {
         description: route.description || '',
         probleme_id: route.probleme_id,
         surface_m2: route.superficie || route.surface_m2 || 0,
-        budget: route.budget || 0,
+        budget: null, // Calculé automatiquement par le manager: prix_par_m2 (setting) * niveau * surface_m2
+        niveau: null, // Défini par le manager (1-10), immutable une fois set
+        prix_par_m2: null, // Récupéré automatiquement depuis settings lors du calcul
         entreprise_id: route.entreprise_id || null,
         date_detection: route.date_creation || admin.firestore.Timestamp.now(),
         date_debut: route.date_debut || null,

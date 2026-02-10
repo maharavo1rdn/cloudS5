@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { 
@@ -75,7 +75,6 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
   const [statuts, setStatuts] = useState([]);
   const [selectedStatuts, setSelectedStatuts] = useState([]);
   const [popupInfo, setPopupInfo] = useState(null);
-  const [hoveredMarker, setHoveredMarker] = useState(null);
   const [mapReady, setMapReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -493,9 +492,8 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
                 position={[lat, lng]}
                 icon={createCustomIcon(statutCode)}
                 eventHandlers={{
-                  click: () => handleMarkerClick(point),
-                  mouseover: () => setHoveredMarker(point.id),
-                  mouseout: () => setHoveredMarker(null)
+                  mouseover: () => handleMarkerClick(point),
+                  mouseout: () => setPopupInfo(null)
                 }}
               >
                 {/* Tooltip au survol */}
@@ -590,6 +588,10 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
                     <div className="popup-info-item">
                       <span className="label">Budget</span>
                       <span className="value">{formatBudget(popupInfo.budget)}</span>
+                    </div>
+                    <div className="popup-info-item">
+                      <span className="label">Niveau</span>
+                      <span className="value">{popupInfo.niveau}</span>
                     </div>
                     <div className="popup-info-item">
                       <span className="label">Avancement</span>
