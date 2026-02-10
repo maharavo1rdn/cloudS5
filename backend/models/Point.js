@@ -75,6 +75,20 @@ const Point = sequelize.define('Point', {
     type: DataTypes.DATE,
     allowNull: true,
     comment: 'Timestamp de la dernière synchronisation avec Firebase'
+  },
+  niveau: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    validate: {
+      min: 1,
+      max: 10
+    },
+    comment: 'Niveau de priorité du point (1-10)'
+  },
+  prix_par_m2: {
+    type: DataTypes.DECIMAL(12, 2),
+    allowNull: true,
+    comment: 'Prix par m² pour cette intervention'
   }
 }, {
   tableName: 'points',

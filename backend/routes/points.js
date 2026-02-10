@@ -74,7 +74,7 @@ const statutToAvancement = {
 // POST /api/points (Manager)
 router.post('/', authenticateToken, requireManager, async (req, res) => {
   try {
-    const { probleme_id, surface_m2, budget, entreprise_id, date_debut, date_fin, /* avancement_pourcentage, */ latitude, longitude, point_statut_code } = req.body;
+    const { probleme_id, surface_m2, budget, niveau, prix_par_m2, entreprise_id, date_debut, date_fin, /* avancement_pourcentage, */ latitude, longitude, point_statut_code } = req.body;
 
     let statutId = null;
     let computedAvancement = 0;
@@ -90,6 +90,8 @@ router.post('/', authenticateToken, requireManager, async (req, res) => {
       probleme_id,
       surface_m2,
       budget,
+      niveau,
+      prix_par_m2,
       entreprise_id,
       date_detection: new Date(),
       date_debut,
@@ -120,7 +122,7 @@ router.patch('/:id', authenticateToken, requireManager, async (req, res) => {
     const point = await Point.findByPk(req.params.id);
     if (!point) return res.status(404).json({ message: 'Point non trouvé' });
 
-    const { point_statut_code, /* avancement_pourcentage, */ latitude, longitude, date_debut, date_fin } = req.body;
+    const { point_statut_code, /* avancement_pourcentage, */ latitude, longitude, date_debut, date_fin, niveau, prix_par_m2 } = req.body;
 
     const update = {};
     if (point_statut_code) {
@@ -135,6 +137,8 @@ router.patch('/:id', authenticateToken, requireManager, async (req, res) => {
     if (longitude !== undefined) update.longitude = longitude;
     if (date_debut !== undefined) update.date_debut = date_debut;
     if (date_fin !== undefined) update.date_fin = date_fin;
+    if (niveau !== undefined) update.niveau = niveau;
+    if (prix_par_m2 !== undefined) update.prix_par_m2 = prix_par_m2;
 
     await point.update(update);
 
