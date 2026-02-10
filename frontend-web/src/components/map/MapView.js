@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { 
@@ -53,10 +53,13 @@ const parseCoords = (lat, lng) => {
 };
 
 // Composant pour détecter les clics sur la carte
-function MapClickHandler({ setPopupInfo, onRightClick }) {
+function MapClickHandler({ setPopupInfo, onRightClick, isGalleryOpen }) {
   useMapEvents({
     click: () => {
-      setPopupInfo(null);
+      // Ne pas fermer le popup si la galerie est ouverte
+      if (!isGalleryOpen) {
+        setPopupInfo(null);
+      }
     },
     contextmenu: (e) => {
       e.originalEvent.preventDefault();
@@ -107,6 +110,7 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
   const closeGallery = () => {
     setShowGallery(false);
     setGalleryImages([]);
+    // Ne pas réinitialiser popupInfo ici - laisser l'utilisateur fermer le popup manuellement
   };
 
   // Position initiale : Antananarivo
@@ -492,15 +496,13 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
                 position={[lat, lng]}
                 icon={createCustomIcon(statutCode)}
                 eventHandlers={{
-                  mouseover: () => handleMarkerClick(point),
-                  mouseout: () => setPopupInfo(null)
+                  click: () => handleMarkerClick(point)
                 }}
               >
-                {/* Tooltip au survol */}
+                {/* Tooltip au survol (géré nativement par Leaflet) */}
                 <Tooltip
                   direction="top"
                   offset={[0, -20]}
-                  permanent={hoveredMarker === point.id}
                   className="marker-tooltip"
                 >
                     <div className="tooltip-content">
@@ -556,10 +558,14 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
 
           {/* Popup détaillé au clic */}
           {popupInfo && (
-            <>
               <Popup
                 position={[parseFloat(popupInfo.latitude || 0), parseFloat(popupInfo.longitude || 0)]}
-                onClose={() => setPopupInfo(null)}
+                onClose={() => {
+                  // Ne pas fermer le popup si la galerie est ouverte
+                  if (!showGallery) {
+                    setPopupInfo(null);
+                  }
+                }}
                 className="custom-popup"
               >
                 <div className="popup-content">
@@ -604,7 +610,7 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
 
                     {/* Lien pour voir les photos */}
                     <div className="popup-info-item full-width">
-                      <button className="btn-view-photos" onClick={() => openGalleryForPoint(popupInfo.id)}>
+                      <button className="btn-view-photos" onClick={(e) => { e.stopPropagation(); openGalleryForPoint(popupInfo.id); }}>
                         Voir les photos
                       </button>
                     </div>
@@ -623,15 +629,13 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
                   </div>
                 </div>
               </Popup>
-
-              <PhotoGalleryModal isOpen={showGallery} images={galleryImages} initialIndex={0} onClose={closeGallery} />
-            </>
           )}
 
           <MapClickHandler 
             setPopupInfo={setPopupInfo} 
             onMapClick={onMapClick}
             onRightClick={handleRightClick}
+            isGalleryOpen={showGallery}
           />
         </MapContainer>
 
@@ -658,6 +662,14 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
           </div>
         )}
       </div>
+
+      {/* Galerie photo - rendu en dehors de la carte et du popup pour éviter qu'elle disparaisse */}
+      <PhotoGalleryModal 
+        isOpen={showGallery} 
+        images={galleryImages} 
+        initialIndex={0} 
+        onClose={closeGallery} 
+      />
 
       {/* Barre d'information */}
       <div className="map-info-bar">
