@@ -4,6 +4,7 @@ import RecapTable from '../components/recap/RecapTable';
 import { useAuth } from '../context/AuthContext';
 import { usePoints } from '../context/PointContext';
 import { useRoutes } from '../context/RoutesContext';
+import { settingsAPI } from '../services/api';
 import { RefreshCw, Download, CloudUpload } from 'lucide-react';
 import './HomePage.css';
 
@@ -19,12 +20,24 @@ const HomePage = () => {
   const [newLat, setNewLat] = React.useState('');
   const [newLon, setNewLon] = React.useState('');
   const [newSurface, setNewSurface] = React.useState('');
-  const [newBudget, setNewBudget] = React.useState('');
   const [newNiveau, setNewNiveau] = React.useState('');
-  const [newPrixM2, setNewPrixM2] = React.useState('');
+  const [prixParM2Setting, setPrixParM2Setting] = React.useState(null);
   const [newDateDebut, setNewDateDebut] = React.useState('');
   const [newDateFin, setNewDateFin] = React.useState('');
   const [newStatut, setNewStatut] = React.useState('');
+
+  // Charger le prix_par_m2 une seule fois
+  React.useEffect(() => {
+    const fetchPrix = async () => {
+      try {
+        const data = await settingsAPI.getPrixParM2();
+        setPrixParM2Setting(parseFloat(data.value));
+      } catch (err) {
+        console.error('Erreur chargement prix_par_m2:', err);
+      }
+    };
+    fetchPrix();
+  }, []);
 
   React.useEffect(() => {
     if (problemes && problemes.length > 0 && !newProblemeId) setNewProblemeId(problemes[0].id);
@@ -64,26 +77,28 @@ const HomePage = () => {
           )}
         </div>
 
-        {/* Bouton sync visible seulement pour le manager */}
-        {user && isManager() && (
+        {/* Actions utilisateur connecté */}
+        {user && (
           <div className="manager-actions">
-            <button 
-              className="btn-sync"
-              onClick={handleSync}
-              disabled={syncing || loading}
-            >
-              {syncing ? (
-                <>
-                  <RefreshCw size={18} className="spin" />
-                  Synchronisation...
-                </>
-              ) : (
-                <>
-                  <CloudUpload size={18} />
-                  Synchroniser Firebase
-                </>
-              )}
-            </button>
+            {isManager() && (
+              <button 
+                className="btn-sync"
+                onClick={handleSync}
+                disabled={syncing || loading}
+              >
+                {syncing ? (
+                  <>
+                    <RefreshCw size={18} className="spin" />
+                    Synchronisation...
+                  </>
+                ) : (
+                  <>
+                    <CloudUpload size={18} />
+                    Synchroniser Firebase
+                  </>
+                )}
+              </button>
+            )}
 
             <button className="btn-add-point" onClick={async () => {
               // Ensure problemes/statuts chargés
@@ -118,26 +133,24 @@ const HomePage = () => {
                 </div>
                 <div className="form-row">
                   <input placeholder="Surface (m²)" value={newSurface} onChange={e => setNewSurface(e.target.value)} />
-                  <input 
-                    placeholder="Budget (auto-calculé)" 
-                    value={
-                      newPrixM2 && newNiveau && newSurface
-                        ? (parseFloat(newPrixM2) * parseInt(newNiveau) * parseFloat(newSurface)).toFixed(2)
-                        : newBudget
-                    }
-                    readOnly
-                    style={{backgroundColor: '#f0f0f0'}}
-                  />
                 </div>
-                <div className="form-row">
-                  <select value={newNiveau} onChange={e => setNewNiveau(e.target.value)}>
-                    <option value="">Niveau (1-10)</option>
-                    {[1,2,3,4,5,6,7,8,9,10].map(n => (
-                      <option key={n} value={n}>{n}</option>
-                    ))}
-                  </select>
-                  <input placeholder="Prix par m² (Ar)" type="number" value={newPrixM2} onChange={e => setNewPrixM2(e.target.value)} />
-                </div>
+                {isManager() && (
+                  <div className="form-row">
+                    <select value={newNiveau} onChange={e => setNewNiveau(e.target.value)}>
+                      <option value="">Niveau (1-10)</option>
+                      {[1,2,3,4,5,6,7,8,9,10].map(n => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                    <input 
+                      placeholder="Prix par m² (depuis paramètres)" 
+                      type="number" 
+                      value={prixParM2Setting || ''} 
+                      readOnly 
+                      style={{backgroundColor: '#f0f0f0'}} 
+                    />
+                  </div>
+                )}
                 <div className="form-row">
                   <input type="date" placeholder="Date début" value={newDateDebut} onChange={e => setNewDateDebut(e.target.value)} />
                   <input type="date" placeholder="Date fin" value={newDateFin} onChange={e => setNewDateFin(e.target.value)} />
@@ -151,16 +164,14 @@ const HomePage = () => {
                         lat: parseFloat(newLat),
                         lon: parseFloat(newLon),
                         surface_m2: newSurface ? parseFloat(newSurface) : null,
-                        budget: newBudget ? parseFloat(newBudget) : null,
-                        niveau: newNiveau ? parseInt(newNiveau) : null,
-                        prix_par_m2: newPrixM2 ? parseFloat(newPrixM2) : null,
+                        niveau: isManager() && newNiveau ? parseInt(newNiveau) : null,
                         date_debut: newDateDebut || null,
                         date_fin: newDateFin || null,
                         point_statut_code: newStatut || undefined
                       });
                       alert('Point créé');
                       setShowCreatePoint(false);
-                      setNewLat(''); setNewLon(''); setNewSurface(''); setNewBudget(''); setNewNiveau(''); setNewPrixM2(''); setNewDateDebut(''); setNewDateFin('');
+                      setNewLat(''); setNewLon(''); setNewSurface(''); setNewNiveau(''); setNewDateDebut(''); setNewDateFin('');
                       await loadRecapitulatif();
                       await loadRoutesEnTravaux();
                     } catch (err) {
@@ -179,8 +190,8 @@ const HomePage = () => {
       {/* Carte */}
       <section className="map-section">
         <MapView onMapClick={(coords) => {
-          console.debug('HomePage onMapClick:', coords, 'isManager:', isManager());
-          if (!isManager()) { alert('Seuls les managers peuvent créer des points.'); return; }
+          console.debug('HomePage onMapClick:', coords);
+          if (!user) { alert('Vous devez être connecté pour créer un signalement.'); return; }
           if (!coords || typeof coords.lat === 'undefined') return;
           (async () => {
             try {

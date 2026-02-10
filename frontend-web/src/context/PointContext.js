@@ -37,7 +37,7 @@ export const PointProvider = ({ children }) => {
         latitude: parseFloat(p.latitude),
         longitude: parseFloat(p.longitude),
         date: p.date_detection,
-        status: p.statut?.code?.toLowerCase() || 'nouveau',  // statut (alias Sequelize) et non point_statut
+        status: p.statut?.code || 'NOUVEAU',  // statut (alias Sequelize) et non point_statut
         surface: parseFloat(p.surface_m2) || 0,
         budget: parseFloat(p.budget) || 0,
         niveau: p.niveau || null,
@@ -69,9 +69,7 @@ export const PointProvider = ({ children }) => {
         latitude: pointData.latitude,
         longitude: pointData.longitude,
         surface_m2: pointData.surface || 0,
-        budget: pointData.budget || 0,
         niveau: pointData.niveau || null,
-        prix_par_m2: pointData.prix_par_m2 || null,
         probleme_id: 1, // À adapter selon le problème sélectionné
         point_statut_code: 'A_FAIRE',
         date_detection: new Date().toISOString().split('T')[0]
@@ -97,7 +95,6 @@ export const PointProvider = ({ children }) => {
       if (updates.adresse) apiUpdates.description = updates.adresse;
       if (updates.status) apiUpdates.point_statut_code = updates.status;
       if (updates.surface) apiUpdates.surface_m2 = updates.surface;
-      if (updates.budget) apiUpdates.budget = updates.budget;
       if (updates.latitude) apiUpdates.latitude = updates.latitude;
       if (updates.longitude) apiUpdates.longitude = updates.longitude;
       if (updates.date_modification) apiUpdates.date_modification = updates.date_modification;
@@ -105,7 +102,6 @@ export const PointProvider = ({ children }) => {
       if (updates.date_debut !== undefined) apiUpdates.date_debut = updates.date_debut;
       if (updates.date_fin !== undefined) apiUpdates.date_fin = updates.date_fin;
       if (updates.niveau !== undefined) apiUpdates.niveau = updates.niveau;
-      if (updates.prix_par_m2 !== undefined) apiUpdates.prix_par_m2 = updates.prix_par_m2;
       
       await pointsAPI.update(id, apiUpdates);
       
