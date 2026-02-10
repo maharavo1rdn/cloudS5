@@ -1,2 +1,0 @@
-Tu vois des migrations vers firebase pourquoi tout les statut des données que l'on a pull sont a faire(nouveau).
-Je ne comprend pas. Explique pourquoi et regle cela s'il te plait. Et regarde si le back end traite bien les données vendant de firebase
