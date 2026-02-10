@@ -14,6 +14,7 @@ import {
   History,
   TrendingUp
 } from 'lucide-react';
+import ProcessingTimeStats from '../../components/ProcessingTimeStats';
 import './PointsManager.css';
 
 const PointsManager = () => {
@@ -190,6 +191,9 @@ const PointsManager = () => {
           Nouveau Point
         </button>
       </div>
+
+      {/* Statistiques de délai de traitement */}
+      <ProcessingTimeStats />
 
       {/* Filtres */}
       <div className="manager-filters">
