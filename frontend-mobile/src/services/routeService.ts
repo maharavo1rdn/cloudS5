@@ -22,10 +22,8 @@ class RouteService {
   private readonly PROBLEMES_COLLECTION = 'problemes';
   private readonly ENTREPRISES_COLLECTION = 'entreprises';
 
-  // Créer un signalement (document dans collection 'points')
   async createRoute(input: CreateRouteInput, userId?: string): Promise<Route> {
     try {
-      // Ensure we always have a creator id (string) to avoid Firestore errors
       let resolvedUserId = userId as any;
       if (!resolvedUserId) {
         try {
@@ -46,7 +44,12 @@ class RouteService {
         description: input.description || '',
         probleme_id: input.probleme_id,
         surface_m2: input.surface_m2 || 0,
-        budget: input.budget || 0,
+        // Calculer le budget automatiquement si niveau et prix_par_m2 (settings) sont fournis
+        budget: (input.niveau && input.prix_par_m2 && input.surface_m2)
+          ? input.prix_par_m2 * input.niveau * input.surface_m2
+          : null,
+        niveau: input.niveau || null,
+        prix_par_m2: input.prix_par_m2 || null,
         entreprise_id: input.entreprise_id || null,
         date_detection: new Date(),
         date_debut: input.date_debut || null,
@@ -83,9 +86,8 @@ class RouteService {
 
       // Créer l'entrée initiale dans l'historique
       await this.createHistoEntry(pointRef.id, {
-        point_statut_id: null, // On pourrait mapper A_FAIRE -> 1, etc.
+        point_statut_id: null,
         avancement_pourcentage: pointDoc.avancement_pourcentage,
-        // Use the point's date_debut if provided so the history reflects the planned start date
         date: pointDoc.date_debut || new Date()
       });
 
@@ -100,6 +102,8 @@ class RouteService {
         point_statut: pointDoc.point_statut as PointStatut,
         surface_m2: pointDoc.surface_m2,
         budget: pointDoc.budget,
+        niveau: pointDoc.niveau,
+        prix_par_m2: pointDoc.prix_par_m2,
         entreprise_id: pointDoc.entreprise_id?.toString(),
         date_detection: pointDoc.date_detection,
         date_debut: pointDoc.date_debut,
@@ -196,7 +200,9 @@ class RouteService {
           longitude: data.longitude || 0,
           point_statut: (data.point_statut as PointStatut) || 'A_FAIRE',
           surface_m2: data.surface_m2 || 0,
-          budget: data.budget || 0,
+          budget: data.budget ?? null,
+          niveau: data.niveau ?? null,
+          prix_par_m2: data.prix_par_m2 ?? null,
           entreprise_id: data.entreprise_id?.toString(),
           date_detection: data.date_detection?.toDate?.() || new Date(),
           date_debut: data.date_debut?.toDate?.() || null,
@@ -279,11 +285,9 @@ class RouteService {
     }
   }
 
-  // Mettre à jour le statut d'un point
   async updateRouteStatus(routeId: string, statut: PointStatut): Promise<void> {
     try {
       const pointRef = doc(db, this.POINTS_COLLECTION, routeId);
-      // store status in point_statut field to follow new model
       await updateDoc(pointRef, { point_statut: statut, updated_at: new Date() });
     } catch (error) {
       console.error('Erreur lors de la mise à jour du statut:', error);
@@ -291,7 +295,6 @@ class RouteService {
     }
   }
 
-  // Mettre à jour un point
   async updateRoute(routeId: string, updates: Partial<Omit<Point, 'id' | 'created_at' | 'created_by'>>, newImages?: Blob[]): Promise<void> {
     try {
       const pointRef = doc(db, this.POINTS_COLLECTION, routeId);
@@ -313,17 +316,34 @@ class RouteService {
         updateData.avancement_pourcentage = computed;
       }
 
-      // Nettoyer les valeurs undefined
       Object.keys(updateData).forEach(key => {
         if (updateData[key] === undefined) {
           delete updateData[key];
         }
       });
+
+      const niveau = updateData.niveau ?? updates.niveau;
+      const prix_par_m2 = updateData.prix_par_m2 ?? updates.prix_par_m2;
+      const surface_m2 = updateData.surface_m2 ?? updates.surface_m2;
+
+      let existingBudget = null;
+      try {
+        const existingDoc = await getDoc(pointRef);
+        if (existingDoc.exists()) {
+          existingBudget = existingDoc.data().budget;
+        }
+      } catch (err) {
+        console.warn('⚠️ Could not read existing point for budget check:', err);
+      }
+
+      if (existingBudget != null && Number(existingBudget) > 0) {
+        delete updateData.budget;
+      } else if (niveau && prix_par_m2 && surface_m2) {
+        updateData.budget = prix_par_m2 * niveau * surface_m2;
+      }
       
-      // Mettre à jour Firestore pour une UI réactive
       await updateDoc(pointRef, updateData);
 
-      // Appeler l'API backend pour que le serveur effectue le calcul définitif et garde la source de vérité
       try {
         const headers = await authService.getAuthHeader();
         if (updates.point_statut !== undefined) {

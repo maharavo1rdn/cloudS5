@@ -172,7 +172,10 @@ router.post('/pull', async (req, res) => {
               description: fbPoint.description || existingPoint.description,
               probleme_id: fbPoint.probleme_id || null,
               surface_m2: fbPoint.surface_m2 ?? null,
-              budget: fbPoint.budget ?? null,
+              // Budget immutable: ne pas écraser si déjà défini localement
+              budget: (existingPoint.budget != null && parseFloat(existingPoint.budget) > 0)
+                ? existingPoint.budget
+                : (fbPoint.budget ?? null),
               niveau: fbPoint.niveau ?? null,
               prix_par_m2: fbPoint.prix_par_m2 ?? null,
               entreprise_id: fbPoint.entreprise_id || null,
@@ -347,6 +350,8 @@ router.post('/push', async (req, res) => {
           probleme_id: point.probleme_id,
           surface_m2: point.surface_m2 ? parseFloat(point.surface_m2) : null,
           budget: point.budget ? parseFloat(point.budget) : null,
+          niveau: point.niveau ?? null,
+          prix_par_m2: point.prix_par_m2 ? parseFloat(point.prix_par_m2) : null,
           entreprise_id: point.entreprise_id,
           date_detection: point.date_detection,
           date_debut: point.date_debut,

@@ -180,22 +180,36 @@
           </div>
         </div>
 
-        <!-- Budget -->
-        <div class="input-wrapper">
+        <!-- Niveau de réparation (Manager only) -->
+        <div v-if="isManager" class="input-wrapper">
+          <label class="input-label">
+            <ion-icon :icon="statsChartOutline" class="label-icon"></ion-icon>
+            <span>Niveau de réparation (1-10)</span>
+          </label>
+          <div class="input-container" :class="{ focused: niveauFocused }">
+            <ion-input
+              v-model.number="form.niveau"
+              type="number"
+              min="1"
+              max="10"
+              step="1"
+              :disabled="loading"
+              placeholder="1 à 10"
+              @ionFocus="niveauFocused = true"
+              @ionBlur="niveauFocused = false"
+            ></ion-input>
+          </div>
+        </div>
+
+        <!-- Budget info (Manager only) -->
+        <div v-if="isManager && form.niveau && form.surface_m2 && settingsPrixM2 > 0" class="input-wrapper">
           <label class="input-label">
             <ion-icon :icon="cashOutline" class="label-icon"></ion-icon>
             <span>Budget estimé (Ar)</span>
           </label>
-          <div class="input-container" :class="{ focused: budgetFocused }">
-            <ion-input
-              v-model.number="form.budget"
-              type="number"
-              step="0.01"
-              :disabled="loading"
-              placeholder="0.00"
-              @ionFocus="budgetFocused = true"
-              @ionBlur="budgetFocused = false"
-            ></ion-input>
+          <div class="budget-display">
+            <span class="budget-value">{{ computedBudget.toLocaleString('fr-FR') }} Ar</span>
+            <span class="budget-formula">= {{ settingsPrixM2.toLocaleString('fr-FR') }} (prix/m²) × {{ form.niveau }} × {{ form.surface_m2 }} m²</span>
           </div>
         </div>
 
@@ -321,12 +335,14 @@ import {
   add,
   closeCircle,
   camera,
-  images
+  images,
+  statsChartOutline
 } from 'ionicons/icons';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import routeService from '../../services/routeService';
 import authService from '../../services/authService';
 import imageService from '../../services/imageService';
+import settingsService from '../../services/settingsService';
 import { Probleme, PointStatut, Entreprise } from '../../types/route.types';
 
 interface PhotoData {
@@ -352,7 +368,7 @@ const form = ref<{
   probleme_id: string;
   point_statut: PointStatut;
   surface_m2: number | undefined;
-  budget: number | undefined;
+  niveau: number | undefined;
   entreprise_id?: string;
   date_debut?: string;
   date_fin?: string;
@@ -362,10 +378,24 @@ const form = ref<{
   probleme_id: '',
   point_statut: 'A_FAIRE',
   surface_m2: undefined,
-  budget: undefined,
+  niveau: undefined,
   entreprise_id: undefined,
   date_debut: undefined,
   date_fin: undefined,
+});
+
+const niveauFocused = ref(false);
+const settingsPrixM2 = ref(0);
+
+// Budget calculé automatiquement (prix_par_m2 vient des settings)
+const computedBudget = computed(() => {
+  const n = form.value.niveau;
+  const p = settingsPrixM2.value;
+  const s = form.value.surface_m2;
+  if (n && p && s && n >= 1 && n <= 10) {
+    return p * n * s;
+  }
+  return 0;
 });
 
 const problemes = ref<Probleme[]>([]);
@@ -385,6 +415,8 @@ onMounted(async () => {
   await loadProblemes();
   entreprises.value = await routeService.getEntreprises();
   isManager.value = await authService.isManager();
+  // Charger le prix_par_m2 depuis les settings
+  settingsPrixM2.value = await settingsService.getSetting('prix_par_m2', 0);
 });
 
 // Set default date_debut to today when modal opens
@@ -504,7 +536,8 @@ const handleSubmit = async () => {
         latitude: props.currentLocation.lat,
         longitude: props.currentLocation.lng,
         surface_m2: form.value.surface_m2,
-        budget: form.value.budget,
+        niveau: form.value.niveau || null,
+        prix_par_m2: settingsPrixM2.value || null,
         entreprise_id: form.value.entreprise_id || undefined,
         date_debut: form.value.date_debut ? new Date(form.value.date_debut) : undefined,
         date_fin: form.value.date_fin ? new Date(form.value.date_fin) : undefined,
@@ -594,7 +627,7 @@ const closeModal = () => {
     probleme_id: '',
     point_statut: 'A_FAIRE',
     surface_m2: undefined,
-    budget: undefined,
+    niveau: undefined,
     entreprise_id: undefined,
     date_debut: undefined,
     date_fin: undefined,
@@ -609,6 +642,7 @@ const closeModal = () => {
   descriptionFocused.value = false;
   surfaceFocused.value = false;
   budgetFocused.value = false;
+  niveauFocused.value = false;
   emit('close');
 };
 </script>
@@ -674,6 +708,29 @@ ion-content {
   max-width: 360px; /* Narrower for mobile screens */
   margin: 0 auto;
   padding: 0 8px;
+}
+
+.budget-display {
+  background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+  border: 2px solid #86efac;
+  border-radius: 16px;
+  padding: 16px;
+  text-align: center;
+}
+
+.budget-value {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+  color: #166534;
+  margin-bottom: 4px;
+}
+
+.budget-formula {
+  display: block;
+  font-size: 12px;
+  color: #4ade80;
+  font-weight: 500;
 }
 
 .input-wrapper {
