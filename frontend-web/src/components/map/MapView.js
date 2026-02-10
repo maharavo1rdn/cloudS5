@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { 
@@ -73,7 +73,6 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
   const [statuts, setStatuts] = useState([]);
   const [selectedStatuts, setSelectedStatuts] = useState([]);
   const [popupInfo, setPopupInfo] = useState(null);
-  const [hoveredMarker, setHoveredMarker] = useState(null);
   const [mapReady, setMapReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -491,49 +490,10 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
                 position={[lat, lng]}
                 icon={createCustomIcon(statutCode)}
                 eventHandlers={{
-                  click: () => handleMarkerClick(point),
-                  mouseover: () => setHoveredMarker(point.id),
-                  mouseout: () => setHoveredMarker(null)
+                  mouseover: () => handleMarkerClick(point),
+                  mouseout: () => setPopupInfo(null)
                 }}
               >
-                {/* Tooltip au survol */}
-                <Tooltip
-                  direction="top"
-                  offset={[0, -20]}
-                  permanent={hoveredMarker === point.id}
-                  className="marker-tooltip"
-                >
-                    <div className="tooltip-content">
-                      <div className="tooltip-header">
-                        <span 
-                          className="tooltip-status"
-                          style={{ backgroundColor: getStatusColor(statutCode) }}
-                        >
-                          {getStatusIcon(statutCode)}
-                          <span>{getStatusLabel(statutCode)}</span>
-                        </span>
-                        <span className="tooltip-date">
-                          {routesAPI.formatDate(point.dateDetection || point.date_detection)}
-                        </span>
-                      </div>
-                      <p className="tooltip-description">{point.nom || point.probleme}</p>
-                      <p className="tooltip-address">
-                        {formatCoordonnees(lat, lng)}
-                      </p>
-                      <div className="tooltip-details">
-                        <span>Surface: {point.surfaceM2 || point.surface_m2 || 'N/A'} m²</span>
-                        <span>Budget: {formatBudget(point.budget)}</span>
-                      </div>
-                      <div className="tooltip-details">
-                        <span>Avancement: {point.avancementPourcentage || point.avancement_pourcentage || 0}%</span>
-                        {point.entreprise && (
-                          <span className="tooltip-entreprise">
-                            🏗️ {point.entreprise?.nom || point.entreprise}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </Tooltip>
               </Marker>
             );
           })}
@@ -585,6 +545,10 @@ const MapView = ({ onMarkerClick, onMapClick, previewCoords }) => {
                     <div className="popup-info-item">
                       <span className="label">Budget</span>
                       <span className="value">{formatBudget(popupInfo.budget)}</span>
+                    </div>
+                    <div className="popup-info-item">
+                      <span className="label">Niveau</span>
+                      <span className="value">{popupInfo.niveau}</span>
                     </div>
                     <div className="popup-info-item">
                       <span className="label">Avancement</span>

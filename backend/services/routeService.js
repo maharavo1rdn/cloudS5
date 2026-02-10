@@ -270,6 +270,59 @@ class RouteService {
   }
 
   /**
+   * Récupérer les détails complets d'un point
+   */
+  static async getDetailsPoint(id) {
+    try {
+      const point = await Point.findByPk(id, {
+        include: [
+          {
+            model: Probleme,
+            as: 'probleme',
+            attributes: ['id', 'nom', 'description']
+          },
+          {
+            model: Entreprise,
+            as: 'entreprise',
+            attributes: ['id', 'nom', 'email', 'telephone']
+          },
+          {
+            model: PointStatut,
+            as: 'statut',
+            attributes: ['id', 'code', 'description', 'niveau']
+          }
+        ],
+        attributes: [
+          'id',
+          'nom',
+          'description',
+          'surface_m2',
+          'budget',
+          'niveau',
+          'prix_par_m2',
+          'date_detection',
+          'date_debut',
+          'date_fin',
+          'avancement_pourcentage',
+          'latitude',
+          'longitude',
+          'firebase_id',
+          'created_at',
+          'updated_at'
+        ]
+      });
+
+      if (!point) {
+        throw new Error(`Point avec l'ID ${id} non trouvé`);
+      }
+
+      return point;
+    } catch (error) {
+      throw new Error(`Erreur lors de la récupération des détails du point: ${error.message}`);
+    }
+  }
+
+  /**
    * Données pour le tableau récapitulatif
    */
   static async getTableauRecapitulatif() {
