@@ -8,6 +8,9 @@
           <ion-button v-if="isManager" @click="openRegisterModal" fill="clear">
             <ion-icon :icon="personAdd" slot="icon-only"></ion-icon>
           </ion-button>
+          <ion-button v-if="isManager" @click="showUsersListModal = true" fill="clear" title="Tous les utilisateurs">
+            <ion-icon :icon="people" slot="icon-only"></ion-icon>
+          </ion-button>
           <ion-button @click="syncData" :disabled="isLoadingRoutes" fill="clear" title="Rafraîchir les signalements">
             <ion-icon v-if="!isLoadingRoutes" :icon="refreshCircle" slot="icon-only"></ion-icon>
             <ion-spinner v-else name="crescent" slot="icon-only"></ion-spinner>
@@ -314,6 +317,13 @@
       @close="showSettingsModal = false"
     />
 
+    <UsersListModal
+      v-if="isManager"
+      :is-open="showUsersListModal"
+      @close="showUsersListModal = false"
+      @success="showUsersListModal = false"
+    />
+
     <NotificationsModal
       :is-open="showNotificationsModal"
       @close="handleNotificationsClose"
@@ -337,7 +347,7 @@ import {
   IonFabButton,
   IonSpinner,
 } from '@ionic/vue';
-import { logOut, add, personAdd, locate, warning, alertCircle, construct, checkmarkCircle, map as mapIcon, list, person, documentOutline, pencil, refreshCircle, statsChart, notifications, filterOutline, settingsOutline } from 'ionicons/icons';
+import { logOut, add, personAdd, locate, warning, alertCircle, construct, checkmarkCircle, map as mapIcon, list, person, documentOutline, pencil, refreshCircle, statsChart, notifications, filterOutline, settingsOutline, people } from 'ionicons/icons';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Preferences } from '@capacitor/preferences';
@@ -351,6 +361,7 @@ import StatisticsModal from '../components/modals/StatisticsModal.vue';
 import PhotoGalleryModal from '../components/modals/PhotoGalleryModal.vue';
 import NotificationsModal from '../components/modals/NotificationsModal.vue';
 import SettingsModal from '../components/modals/SettingsModal.vue';
+import UsersListModal from '../components/modals/UsersListModal.vue';
 import ConnectivityBanner from '../components/ConnectivityBanner.vue';
 import { Route, PointImage } from '../types/route.types';
 import { notificationService } from '../services/notificationService';
@@ -367,6 +378,7 @@ const showStatsModal = ref(false);
 const showPhotoGallery = ref(false);
 const showNotificationsModal = ref(false);
 const showSettingsModal = ref(false);
+const showUsersListModal = ref(false);
 const notificationCount = ref(0);
 const notificationPermissionGranted = ref(false);
 const selectedRoute = ref<Route | null>(null);
